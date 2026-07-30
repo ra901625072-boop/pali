@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: cbdc-backend
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    rootDir: backend
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: RENDER
+        value: true
+      - key: DATABASE_PATH
+        value: /data/database.db
+    disk:
+      name: cbdc-db-disk
+      mountPath: /data
+      sizeGB: 1

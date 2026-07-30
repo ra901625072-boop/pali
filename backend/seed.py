@@ -5,7 +5,7 @@ import bcrypt
 import sys
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "database.db")
+DB_PATH = os.getenv("DATABASE_PATH", os.path.join(BASE_DIR, "database.db"))
 DATA_PATH = os.path.join(BASE_DIR, "..", "frontend", "assets", "data", "data.json")
 
 def seed(force=False):

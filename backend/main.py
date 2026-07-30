@@ -13,9 +13,23 @@ import os
 
 SECRET_KEY = os.getenv("JWT_SECRET", "cbdc_super_secret_jwt_key_97_pali")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "database.db")
+DB_PATH = os.getenv("DATABASE_PATH", os.path.join(BASE_DIR, "database.db"))
 
 app = FastAPI(title="CBDC Ration Portal API")
+
+@app.on_event("startup")
+def on_startup():
+    db_dir = os.path.dirname(DB_PATH)
+    if db_dir and not os.path.exists(db_dir):
+        os.makedirs(db_dir, exist_ok=True)
+        
+    if not os.path.exists(DB_PATH):
+        print(f"Database not found at {DB_PATH}. Auto-seeding database...")
+        from seed import seed
+        try:
+            seed(force=True)
+        except Exception as e:
+            print(f"Failed to auto-seed database: {e}")
 
 # Add CORS Middleware
 app.add_middleware(
