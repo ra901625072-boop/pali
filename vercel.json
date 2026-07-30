@@ -11,8 +11,8 @@
       "destination": "/frontend/assets/:path*"
     },
     {
-      "source": "/((?!api|frontend|assets).*)|/",
-      "destination": "/frontend/index.html"
+      "source": "/:path*",
+      "destination": "/frontend/:path*"
     }
   ]
 }
