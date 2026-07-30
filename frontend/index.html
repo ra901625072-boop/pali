@@ -228,7 +228,13 @@
       <!-- List Controls & Stats -->
       <div class="list-stats-row">
         <div class="results-count" id="results-count">🏠 કાર્ડ: ...</div>
-        <div class="last-updated-badge" id="last-updated-badge">🔄 અપડેટ: ...</div>
+        <div class="sync-actions-row">
+          <button id="list-refresh-btn" class="refresh-sync-btn" onclick="triggerManualSync()" title="તાજું કરો">
+            <svg class="sync-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="13" height="13" style="vertical-align: middle; margin-right: 3px;"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+            <span>તાજું કરો</span>
+          </button>
+          <div class="last-updated-badge" id="last-updated-badge">🔄 અપડેટ: ...</div>
+        </div>
       </div>
 
       <!-- Beneficiaries List Container (skeleton loading injected via JS) -->
@@ -292,7 +298,7 @@
         <div class="process-step-card">
           <div class="step-image-container">
             <div class="step-number-badge">૪</div>
-            <img src="step4.jpg" alt="પગલું ૪" class="step-image" loading="lazy">
+            <img src="assets/images/steps/step4.jpg" alt="પગલું ૪" class="step-image" loading="lazy">
           </div>
           <div class="step-text-container">
             <h3>સ્ટેપ ૪:</h3>
@@ -304,7 +310,7 @@
         <div class="process-step-card">
           <div class="step-image-container">
             <div class="step-number-badge">૫</div>
-            <img src="step5.jpg" alt="પગલું ૫" class="step-image" loading="lazy">
+            <img src="assets/images/steps/step5.jpg" alt="પગલું ૫" class="step-image" loading="lazy">
           </div>
           <div class="step-text-container">
             <h3>સ્ટેપ ૫:</h3>
@@ -316,7 +322,7 @@
         <div class="process-step-card">
           <div class="step-image-container">
             <div class="step-number-badge">૬</div>
-            <img src="step6.jpg" alt="પગલું ૬" class="step-image" loading="lazy">
+            <img src="assets/images/steps/step6.jpg" alt="પગલું ૬" class="step-image" loading="lazy">
           </div>
           <div class="step-text-container">
             <h3>સ્ટેપ ૬:</h3>
@@ -328,7 +334,7 @@
         <div class="process-step-card">
           <div class="step-image-container">
             <div class="step-number-badge">૭</div>
-            <img src="step7.jpg" alt="પગલું ૭" class="step-image" loading="lazy">
+            <img src="assets/images/steps/step7.jpg" alt="પગલું ૭" class="step-image" loading="lazy">
           </div>
           <div class="step-text-container">
             <h3>સ્ટેપ ૭:</h3>
@@ -340,7 +346,7 @@
         <div class="process-step-card">
           <div class="step-image-container">
             <div class="step-number-badge">૮</div>
-            <img src="step8.jpg" alt="પગલું ૮" class="step-image" loading="lazy">
+            <img src="assets/images/steps/step8.jpg" alt="પગલું ૮" class="step-image" loading="lazy">
           </div>
           <div class="step-text-container">
             <h3>સ્ટેપ ૮:</h3>
@@ -478,6 +484,10 @@
             <span class="last-sync-time" id="admin-last-sync">લાઈવ</span>
           </div>
           <div class="admin-actions-right">
+            <button id="admin-refresh-btn" class="btn btn-secondary btn-sm btn-refresh" onclick="triggerManualSync()" title="તાજું કરો">
+              <svg class="sync-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="13" height="13" style="vertical-align: middle; margin-right: 3px;"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+              <span>તાજું કરો</span>
+            </button>
             <button id="admin-export-json-btn" class="btn btn-primary btn-sm" onclick="openExportModal()">📥 ડાઉનલોડ</button>
             <button id="admin-logout-btn" class="btn btn-secondary btn-sm">🚪 બહાર</button>
           </div>
@@ -674,85 +684,283 @@
   <!-- Talati Custom Export Options Hub Modal -->
   <div id="export-options-modal" class="lightbox-modal">
     <div class="lightbox-overlay" onclick="closeExportModal()"></div>
-    <div class="export-modal-card">
+    <div class="export-modal-card export-hub-card">
       <div class="export-modal-header">
-        <h3>📥 અહેવાલ ડાઉનલોડ કેન્દ્ર (Export Hub)</h3>
+        <h3>🏛️ સરકારી અહેવાલ ડાઉનલોડ કેન્દ્ર (Official Export Hub)</h3>
         <button class="lightbox-close-btn" onclick="closeExportModal()">&times;</button>
       </div>
 
-      <div class="export-modal-body">
-        <!-- Step 1: Select Filter Data -->
-        <div class="export-section">
-          <label class="export-section-title">૧. કયો ડેટા ડાઉનલોડ કરવો છે? (Select Dataset)</label>
-          <div class="export-filter-options">
-            <label class="export-radio-item">
-              <input type="radio" name="exportDataFilter" value="ALL" checked onchange="updateExportModalPreview()">
-              <span class="export-radio-box">
-                <span class="export-radio-label">📋 બધા સભ્યો (All)</span>
-                <span class="export-radio-count" id="exp-count-all">270</span>
-              </span>
-            </label>
+      <div class="export-modal-body export-hub-body">
+        <!-- Dual Panel Container -->
+        <div class="export-hub-panels">
+          
+          <!-- Left Panel: Configurations -->
+          <div class="export-config-panel">
+            
+            <!-- Tab Navigation Header -->
+            <div class="export-hub-tabs">
+              <button type="button" class="export-tab-btn active" id="export-tab-btn-filters" onclick="switchExportTab('filters')">
+                🔍 ફિલ્ટર્સ <span class="tab-lang-en">(Filters)</span>
+              </button>
+              <button type="button" class="export-tab-btn" id="export-tab-btn-columns" onclick="switchExportTab('columns')">
+                📊 કોલમ & ક્રમ <span class="tab-lang-en">(Columns)</span>
+              </button>
+              <button type="button" class="export-tab-btn" id="export-tab-btn-styling" onclick="switchExportTab('styling')">
+                🏛️ અહેવાલ સેટિંગ્સ <span class="tab-lang-en">(Settings)</span>
+              </button>
+            </div>
 
-            <label class="export-radio-item">
-              <input type="radio" name="exportDataFilter" value="PENDING" onchange="updateExportModalPreview()">
-              <span class="export-radio-box">
-                <span class="export-radio-label">⏳ પેન્ડિંગ (Pending)</span>
-                <span class="export-radio-count" id="exp-count-pending">--</span>
-              </span>
-            </label>
+            <!-- Tab Content 1: Filters -->
+            <div class="export-tab-content active" id="export-tab-content-filters">
+              <div class="export-config-group">
+                <label class="export-section-title">૧. ડેટા જૂથ (Filter Dataset)</label>
+                <div class="export-filter-options-grid">
+                  <label class="export-radio-item">
+                    <input type="radio" name="exportDataFilter" value="ALL" checked onchange="handleExportConfigChange()">
+                    <span class="export-radio-box">
+                      <span class="export-radio-label">📋 બધા સભ્યો</span>
+                      <span class="export-radio-count" id="exp-count-all">270</span>
+                    </span>
+                  </label>
 
-            <label class="export-radio-item">
-              <input type="radio" name="exportDataFilter" value="ONBOARDED" onchange="updateExportModalPreview()">
-              <span class="export-radio-box">
-                <span class="export-radio-label">✅ ઓનબોર્ડેડ (Done)</span>
-                <span class="export-radio-count" id="exp-count-onboarded">--</span>
-              </span>
-            </label>
+                  <label class="export-radio-item">
+                    <input type="radio" name="exportDataFilter" value="PENDING" onchange="handleExportConfigChange()">
+                    <span class="export-radio-box">
+                      <span class="export-radio-label">⏳ પેન્ડિંગ (Pending)</span>
+                      <span class="export-radio-count" id="exp-count-pending">--</span>
+                    </span>
+                  </label>
 
-            <label class="export-radio-item">
-              <input type="radio" name="exportDataFilter" value="SHARED_MOBILE" onchange="updateExportModalPreview()">
-              <span class="export-radio-box">
-                <span class="export-radio-label">📱 શેર્ડ મોબાઈલ સભ્યો</span>
-                <span class="export-radio-count" id="exp-count-shared-mob">--</span>
-              </span>
-            </label>
+                  <label class="export-radio-item">
+                    <input type="radio" name="exportDataFilter" value="ONBOARDED" onchange="handleExportConfigChange()">
+                    <span class="export-radio-box">
+                      <span class="export-radio-label">✅ ઓનબોર્ડેડ (Done)</span>
+                      <span class="export-radio-count" id="exp-count-onboarded">--</span>
+                    </span>
+                  </label>
 
-            <label class="export-radio-item">
-              <input type="radio" name="exportDataFilter" value="SHARED_CARD" onchange="updateExportModalPreview()">
-              <span class="export-radio-box">
-                <span class="export-radio-label">🔗 શેર્ડ રેશનકાર્ડ સભ્યો</span>
-                <span class="export-radio-count" id="exp-count-shared-card">--</span>
-              </span>
-            </label>
+                  <label class="export-radio-item">
+                    <input type="radio" name="exportDataFilter" value="SHARED_MOBILE" onchange="handleExportConfigChange()">
+                    <span class="export-radio-box">
+                      <span class="export-radio-label">📱 શેર્ડ મોબાઈલ</span>
+                      <span class="export-radio-count" id="exp-count-shared-mob">--</span>
+                    </span>
+                  </label>
+
+                  <label class="export-radio-item">
+                    <input type="radio" name="exportDataFilter" value="SHARED_CARD" onchange="handleExportConfigChange()">
+                    <span class="export-radio-box">
+                      <span class="export-radio-label">🔗 શેર્ડ રેશનકાર્ડ</span>
+                      <span class="export-radio-count" id="exp-count-shared-card">--</span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="export-config-group" style="margin-top: 12px;">
+                <label class="export-section-title">૨. અન્ય ફિલ્ટર પરિમાણો (Additional Filters)</label>
+                <div class="export-input-row">
+                  <div class="export-input-col">
+                    <label class="export-field-label">રેશન કાર્ડ પ્રકાર</label>
+                    <select id="export-filter-card-type" class="export-select" onchange="handleExportConfigChange()">
+                      <option value="ALL">બધા પ્રકાર (All)</option>
+                      <option value="PHH">PHH</option>
+                      <option value="AAY">AAY</option>
+                      <option value="APL-1">APL-1</option>
+                      <option value="BPL">BPL</option>
+                    </select>
+                  </div>
+                  <div class="export-input-col">
+                    <label class="export-field-label">RC વેરિફિકેશન</label>
+                    <select id="export-filter-rc-status" class="export-select" onchange="handleExportConfigChange()">
+                      <option value="ALL">બધા (All)</option>
+                      <option value="Yes">RC ઓનબોર્ડેડ (Yes)</option>
+                      <option value="No">RC પેન્ડિંગ (No)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="export-config-group" style="margin-top: 12px;">
+                <label class="export-section-title">૩. વિશિષ્ટ શોધ (Direct Search)</label>
+                <div class="export-search-box">
+                  <input type="text" id="export-search-input" class="export-input" placeholder="નામ અથવા કાર્ડ નંબર ફિલ્ટર કરો..." oninput="handleExportConfigChange()">
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab Content 2: Columns & Sorting -->
+            <div class="export-tab-content" id="export-tab-content-columns">
+              <div class="export-config-group">
+                <div class="export-column-header-row">
+                  <label class="export-section-title" style="margin-bottom: 0;">૧. દસ્તાવેજ કોલમ પસંદ કરો (Select Columns)</label>
+                  <div class="export-column-bulk-actions">
+                    <button type="button" class="export-link-btn" onclick="toggleAllExportColumns(true)">બધી પસંદ કરો</button>
+                    <span style="color: #cbd5e1;">|</span>
+                    <button type="button" class="export-link-btn" onclick="toggleAllExportColumns(false)">બધી સાફ કરો</button>
+                  </div>
+                </div>
+
+                <div class="export-columns-checkbox-grid">
+                  <label class="export-checkbox-item">
+                    <input type="checkbox" name="exportColumn" value="sr_no" checked onchange="handleExportConfigChange()">
+                    <span>ક્રમ (Sr No)</span>
+                  </label>
+                  <label class="export-checkbox-item">
+                    <input type="checkbox" name="exportColumn" value="name" checked onchange="handleExportConfigChange()">
+                    <span>લાભાર્થીનું નામ (Name)</span>
+                  </label>
+                  <label class="export-checkbox-item">
+                    <input type="checkbox" name="exportColumn" value="ration_card" checked onchange="handleExportConfigChange()">
+                    <span>રેશન કાર્ડ નંબર (Ration Card)</span>
+                  </label>
+                  <label class="export-checkbox-item">
+                    <input type="checkbox" name="exportColumn" value="card_type" checked onchange="handleExportConfigChange()">
+                    <span>કાર્ડ પ્રકાર (Card Type)</span>
+                  </label>
+                  <label class="export-checkbox-item">
+                    <input type="checkbox" name="exportColumn" value="mobile" checked onchange="handleExportConfigChange()">
+                    <span>મોબાઈલ નંબર (Mobile)</span>
+                  </label>
+                  <label class="export-checkbox-item">
+                    <input type="checkbox" name="exportColumn" value="member_id" onchange="handleExportConfigChange()">
+                    <span>સભ્ય ID (Member ID)</span>
+                  </label>
+                  <label class="export-checkbox-item">
+                    <input type="checkbox" name="exportColumn" value="uid_masked" onchange="handleExportConfigChange()">
+                    <span>આધાર કાર્ડ (Aadhaar Masked)</span>
+                  </label>
+                  <label class="export-checkbox-item">
+                    <input type="checkbox" name="exportColumn" value="onboarded" checked onchange="handleExportConfigChange()">
+                    <span>ઓનબોર્ડિંગ સ્થિતિ (Status)</span>
+                  </label>
+                  <label class="export-checkbox-item">
+                    <input type="checkbox" name="exportColumn" value="rc_onboarded" onchange="handleExportConfigChange()">
+                    <span>RC વેરિફિકેશન (RC Status)</span>
+                  </label>
+                  <label class="export-checkbox-item">
+                    <input type="checkbox" name="exportColumn" value="shop_details" onchange="handleExportConfigChange()">
+                    <span>દુકાન વિગતો (Shop Name)</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="export-config-group" style="margin-top: 18px;">
+                <label class="export-section-title">૨. સોર્ટિંગ પરિમાણો (Sort Order)</label>
+                <div class="export-input-row">
+                  <div class="export-input-col">
+                    <label class="export-field-label">ગોઠવો (Sort By)</label>
+                    <select id="export-sort-field" class="export-select" onchange="handleExportConfigChange()">
+                      <option value="sr_no">ક્રમ (Sr No)</option>
+                      <option value="name">નામ (Name)</option>
+                      <option value="ration_card">રેશન કાર્ડ (Ration Card)</option>
+                      <option value="mobile">મોબાઈલ નંબર (Mobile)</option>
+                    </select>
+                  </div>
+                  <div class="export-input-col">
+                    <label class="export-field-label">ક્રમ (Order)</label>
+                    <select id="export-sort-order" class="export-select" onchange="handleExportConfigChange()">
+                      <option value="ASC">ચડતો ક્રમ (Ascending)</option>
+                      <option value="DESC">ઉતરતો ક્રમ (Descending)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab Content 3: Styling -->
+            <div class="export-tab-content" id="export-tab-content-styling">
+              <div class="export-config-group">
+                <label class="export-section-title">૧. દસ્તાવેજ શીર્ષક અને વિગતો (Titles)</label>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  <div>
+                    <label class="export-field-label">મુખ્ય હેડિંગ</label>
+                    <input type="text" id="export-title-input" class="export-input" value="ગુજરાત સરકાર - ઈ-રૂપિયો CBDC રેશન વિતરણ વ્હાઇટલિસ્ટ" oninput="handleExportConfigChange()">
+                  </div>
+                  <div>
+                    <label class="export-field-label">પેટા હેડિંગ / કચેરી</label>
+                    <input type="text" id="export-subtitle-input" class="export-input" value="તલાટી-કમ-મંત્રીની કચેરી, પળી ગ્રામ પંચાયત, તા. ઊંઝા, જી. મહેસાણા" oninput="handleExportConfigChange()">
+                  </div>
+                </div>
+              </div>
+
+              <div class="export-config-group" style="margin-top: 12px;">
+                <div class="export-input-row">
+                  <div class="export-input-col">
+                    <label class="export-field-label">દસ્તાવેજ વોટરમાર્ક (Watermark)</label>
+                    <select id="export-watermark-select" class="export-select" onchange="handleExportWatermarkSelectChange()">
+                      <option value="NONE">કંઈ નહીં (None)</option>
+                      <option value="CONFIDENTIAL">CONFIDENTIAL (ગુપ્ત)</option>
+                      <option value="PALI">PALI GRAM PANCHAYAT</option>
+                      <option value="GOVT">GOVERNMENT OF GUJARAT</option>
+                      <option value="CUSTOM">કસ્ટમ વોટરમાર્ક...</option>
+                    </select>
+                  </div>
+                  <div class="export-input-col" id="export-custom-watermark-wrapper" style="display: none;">
+                    <label class="export-field-label">કસ્ટમ લખાણ</label>
+                    <input type="text" id="export-custom-watermark-input" class="export-input" placeholder="લખાણ દાખલ કરો..." oninput="handleExportConfigChange()">
+                  </div>
+                </div>
+              </div>
+
+              <div class="export-config-group" style="margin-top: 12px;">
+                <label class="export-section-title">૨. સત્તાવાર તત્વો (Toggles)</label>
+                <div class="export-toggles-grid">
+                  <label class="export-toggle-item">
+                    <input type="checkbox" id="export-toggle-emblem" checked onchange="handleExportConfigChange()">
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">🏛️ રાજ્ય મુદ્રા / સરકારી સીલ</span>
+                  </label>
+
+                  <label class="export-toggle-item">
+                    <input type="checkbox" id="export-toggle-stamp" checked onchange="handleExportConfigChange()">
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">✍️ સહી અને સિક્કાની જગ્યા</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Export Formats Section -->
+            <div class="export-format-group">
+              <label class="export-section-title">૪. આઉટપુટ ફોર્મેટ (Download Format)</label>
+              <div class="export-format-options">
+                <button type="button" class="export-format-btn active" id="format-btn-pdf" onclick="selectExportFormat('PDF')">
+                  <span class="format-icon">📄</span>
+                  <span class="format-name">PDF Document</span>
+                  <span class="format-desc">પ્રિન્ટિંગ માટે સરકારી ફોર્મેટ PDF</span>
+                </button>
+                <button type="button" class="export-format-btn" id="format-btn-sheet" onclick="selectExportFormat('SHEET')">
+                  <span class="format-icon">📊</span>
+                  <span class="format-name">Excel / Sheet</span>
+                  <span class="format-desc">ડેટા વિશ્લેષણ માટે XLSX ફાઇલ</span>
+                </button>
+              </div>
+            </div>
+
           </div>
-        </div>
 
-        <!-- Step 2: Select Format -->
-        <div class="export-section">
-          <label class="export-section-title">૨. ફોર્મેટ પસંદ કરો (Export Format)</label>
-          <div class="export-format-options">
-            <button type="button" class="export-format-btn active" id="format-btn-pdf" onclick="selectExportFormat('PDF')">
-              <span class="format-icon">📄</span>
-              <span class="format-name">PDF Document</span>
-              <span class="format-desc">પ્રિન્ટ / અહેવાલ PDF</span>
-            </button>
-            <button type="button" class="export-format-btn" id="format-btn-sheet" onclick="selectExportFormat('SHEET')">
-              <span class="format-icon">📊</span>
-              <span class="format-name">Excel / Sheet</span>
-              <span class="format-desc">માઇક્રોસોફ્ટ એક્સેલ / ગૂગલ શીટ</span>
-            </button>
+          <!-- Right Panel: Live Document Mock Preview -->
+          <div class="export-preview-panel">
+            <h4 class="preview-panel-title">👁️ દસ્તાવેજ લાઈવ પ્રીવ્યૂ (Live PDF Sheet Preview)</h4>
+            
+            <div class="preview-sheet-outer">
+              <div class="preview-sheet-paper" id="export-preview-sheet-paper">
+                <!-- Preview sheet content renders dynamically in JS -->
+              </div>
+            </div>
+            
+            <div class="export-preview-bar" id="export-preview-bar">
+              📊 કુલ <strong>270 સભ્યો</strong> ડાઉનલોડ કરવા માટે તૈયાર છે
+            </div>
           </div>
-        </div>
 
-        <!-- Export Summary Preview Badge -->
-        <div class="export-preview-bar" id="export-preview-bar">
-          📊 કુલ <strong>270 સભ્યો</strong> ડાઉનલોડ કરવા માટે તૈયાર છે (PDF format)
         </div>
       </div>
 
       <div class="export-modal-footer">
         <button class="btn btn-secondary" onclick="closeExportModal()">રદ કરો</button>
-        <button class="btn btn-primary" onclick="executeExportDownload()">📥 ડાઉનલોડ અહેવાલ</button>
+        <button class="btn btn-primary" onclick="executeExportDownload()">📥 સત્તાવાર અહેવાલ ડાઉનલોડ કરો</button>
       </div>
     </div>
   </div>
@@ -791,7 +999,7 @@
       <!-- Nav Admin / Tatali -->
       <button class="nav-item admin-nav-btn" data-tab="admin-tab" onclick="switchTab('admin-tab')">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="nav-icon"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-        <span class="nav-label">Tatali</span>
+        <span class="nav-label">તલાટી</span>
       </button>
 
     </div>

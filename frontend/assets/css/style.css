@@ -3631,3 +3631,528 @@ input:checked + .toggle-slider:before {
     grid-template-columns: repeat(5, 1fr);
   }
 }
+
+/* ==========================================================================
+   CBDC Ration Portal - UI/UX Improvements & Enhancements
+   ========================================================================== */
+
+/* 1. Manual Sync & Refresh Layout */
+.sync-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.refresh-sync-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary-color);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+}
+
+.refresh-sync-btn:hover:not(:disabled) {
+  background-color: rgba(11, 26, 58, 0.04);
+  border-color: var(--primary-color);
+  transform: translateY(-1px);
+}
+
+.refresh-sync-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.refresh-sync-btn:disabled,
+.btn-refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Sync Icon Rotate Keyframe Animation */
+@keyframes spin-sync {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.sync-icon.spinning {
+  animation: spin-sync 0.8s linear infinite;
+}
+
+/* 2. Row Lock & Updating States */
+tr.row-updating {
+  opacity: 0.55;
+  background-color: rgba(197, 160, 67, 0.05) !important;
+  pointer-events: none;
+  transition: opacity var(--transition-fast);
+}
+
+tr.row-updating .toggle-slider {
+  background-color: var(--border-color) !important;
+  box-shadow: 0 0 0 2px rgba(197, 160, 67, 0.2);
+}
+
+/* ==========================================================================
+   Advanced Export Hub / Government Document Customizer Styles
+   ========================================================================== */
+
+.export-hub-card {
+  max-width: 920px;
+  width: 95%;
+  height: 90vh;
+  max-height: 660px;
+  display: flex;
+  flex-direction: column;
+}
+
+.export-hub-body {
+  padding: 16px 20px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.export-hub-panels {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.export-config-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  padding-right: 10px;
+  height: 100%;
+}
+
+/* Custom modern scrollbar for config panel */
+.export-config-panel::-webkit-scrollbar {
+  width: 5px;
+}
+.export-config-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+.export-config-panel::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.export-config-panel::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.export-preview-panel {
+  display: flex;
+  flex-direction: column;
+  background: #f1f5f9;
+  border-radius: var(--border-radius-md);
+  padding: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  height: 100%;
+}
+
+.preview-panel-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--primary-color);
+  margin: 0 0 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.preview-sheet-outer {
+  flex: 1;
+  overflow: auto;
+  background: #94a3b8;
+  border-radius: var(--border-radius-sm);
+  padding: 15px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.12);
+  border: 1px solid #cbd5e1;
+}
+
+.preview-sheet-paper {
+  background: #ffffff;
+  width: 100%;
+  max-width: 600px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+  padding: 20px;
+  box-sizing: border-box;
+  font-family: 'Outfit', 'Noto Sans Gujarati', sans-serif;
+  color: #0b1a3a;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Segmented Control Tab Bar */
+.export-hub-tabs {
+  display: flex;
+  background: rgba(11, 26, 58, 0.05);
+  padding: 4px;
+  border-radius: var(--border-radius-md);
+  margin-bottom: 12px;
+  gap: 2px;
+  border: none;
+}
+
+.export-tab-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 8px 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-light);
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-bottom: 0;
+  white-space: nowrap;
+}
+
+.export-tab-btn:hover {
+  color: var(--primary-color);
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.export-tab-btn.active {
+  color: var(--primary-color);
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(11, 26, 58, 0.08);
+}
+
+.export-tab-content {
+  display: none;
+}
+
+.export-tab-content.active {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Config Components */
+.export-config-group {
+  background: var(--card-bg);
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.export-filter-options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.export-input-row {
+  display: flex;
+  gap: 10px;
+}
+
+.export-input-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.export-select, .export-input {
+  padding: 7px 10px;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  font-size: 12.5px;
+  background: #ffffff;
+  color: var(--text-color);
+  transition: border-color 0.2s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.export-select:focus, .export-input:focus {
+  border-color: var(--primary-color);
+  outline: none;
+}
+
+.export-field-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-light);
+}
+
+/* Interactive Card Checkboxes */
+.export-columns-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.export-checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--text-color);
+  padding: 8px 10px;
+  background: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  transition: all 0.2s ease;
+}
+
+.export-checkbox-item:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.export-checkbox-item input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--primary-color);
+  cursor: pointer;
+}
+
+.export-checkbox-item:has(input[type="checkbox"]:checked) {
+  background: rgba(11, 26, 58, 0.03);
+  border-color: rgba(11, 26, 58, 0.2);
+}
+
+.export-column-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 4px;
+  margin-bottom: 6px;
+}
+
+.export-column-bulk-actions {
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.export-link-btn {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0;
+}
+
+.export-link-btn:hover {
+  text-decoration: underline;
+}
+
+/* Dynamic Spherical Colors Swatches */
+.export-color-swatches {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+  padding: 4px 0;
+}
+
+.color-swatch-item {
+  position: relative;
+  cursor: pointer;
+}
+
+.color-swatch-item input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.swatch-circle {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+}
+
+.color-swatch-item input[type="radio"]:checked + .swatch-circle {
+  transform: scale(1.18);
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px var(--primary-color), 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.color-navy { background: radial-gradient(circle at 30% 30%, #1e3a8a, #0b1a3a); }
+.color-saffron { background: radial-gradient(circle at 30% 30%, #f59e0b, #d97706); }
+.color-emerald { background: radial-gradient(circle at 30% 30%, #10b981, #059669); }
+.color-monochrome { background: radial-gradient(circle at 30% 30%, #475569, #1e293b); }
+
+/* Custom Sliders for Toggles */
+.export-toggles-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.export-toggle-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  user-select: none;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  transition: all 0.2s ease;
+}
+
+.export-toggle-item:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.export-toggle-item:has(input[type="checkbox"]:checked) {
+  background: rgba(11, 26, 58, 0.03);
+  border-color: rgba(11, 26, 58, 0.2);
+}
+
+.export-toggle-item input[type="checkbox"] {
+  display: none;
+}
+
+.toggle-slider {
+  position: relative;
+  display: inline-block;
+  width: 30px;
+  height: 16px;
+  background-color: #cbd5e1;
+  border-radius: 8px;
+  transition: background-color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.toggle-slider::before {
+  position: absolute;
+  content: "";
+  height: 12px;
+  width: 12px;
+  left: 2px;
+  bottom: 2px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+}
+
+.export-toggle-item input[type="checkbox"]:checked + .toggle-slider {
+  background-color: var(--primary-color);
+}
+
+.export-toggle-item input[type="checkbox"]:checked + .toggle-slider::before {
+  transform: translateX(14px);
+}
+
+.toggle-label {
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+.export-format-group {
+  background: rgba(11, 26, 58, 0.02);
+  border: 1px dashed var(--border-color);
+  padding: 10px;
+  border-radius: var(--border-radius-md);
+  margin-top: 4px;
+}
+
+/* Watermark CSS */
+.preview-watermark-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-30deg);
+  font-size: 26px;
+  font-weight: 900;
+  color: rgba(11, 26, 58, 0.04);
+  pointer-events: none;
+  white-space: nowrap;
+  user-select: none;
+  z-index: 1;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.preview-sheet-paper-container {
+  position: relative;
+  z-index: 2;
+}
+
+/* Document Themes styled inside mock paper */
+.theme-navy-text { color: #0b1a3a !important; }
+.theme-saffron-text { color: #d97706 !important; }
+.theme-emerald-text { color: #059669 !important; }
+.theme-monochrome-text { color: #1e293b !important; }
+
+.theme-navy-bg { background-color: #0b1a3a !important; }
+.theme-saffron-bg { background-color: #d97706 !important; }
+.theme-emerald-bg { background-color: #059669 !important; }
+.theme-monochrome-bg { background-color: #1e293b !important; }
+
+.theme-navy-border { border-color: #0b1a3a !important; }
+.theme-saffron-border { border-color: #d97706 !important; }
+.theme-emerald-border { border-color: #059669 !important; }
+.theme-monochrome-border { border-color: #1e293b !important; }
+
+/* Responsive Adaptations */
+@media (max-width: 768px) {
+  .export-hub-panels {
+    grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
+  }
+  .export-config-panel {
+    max-height: none;
+    overflow: visible;
+  }
+  .export-preview-panel {
+    display: none; /* Hide preview on mobile layout to save space */
+  }
+}
+
+@media (max-width: 520px) {
+  .tab-lang-en {
+    display: none;
+  }
+}
+
+@media (max-width: 450px) {
+  .export-columns-checkbox-grid {
+    grid-template-columns: 1fr;
+  }
+  .export-toggles-grid {
+    grid-template-columns: 1fr;
+  }
+}
