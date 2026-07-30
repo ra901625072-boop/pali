@@ -6,8 +6,16 @@
       "destination": "https://cbdc-backend.onrender.com/api/:path*"
     },
     {
-      "source": "/:path*",
-      "destination": "/frontend/:path*"
+      "source": "/",
+      "destination": "/frontend/index.html"
+    },
+    {
+      "source": "/index.html",
+      "destination": "/frontend/index.html"
+    },
+    {
+      "source": "/assets/:path*",
+      "destination": "/frontend/assets/:path*"
     }
   ]
 }
