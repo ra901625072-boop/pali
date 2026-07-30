@@ -382,10 +382,20 @@ def sync_latest(user_id: str = Depends(get_current_user), db: sqlite3.Connection
 
 
 
-# Serve static files at root (fallback for local development)
-FRONTEND_DIR = os.path.join(BASE_DIR, "..", "frontend")
-if os.path.exists(FRONTEND_DIR):
-    app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+# Root status route for backend
+@app.get("/")
+def read_root():
+    return {
+        "status": "online",
+        "message": "CBDC Ration Portal API is running successfully.",
+        "version": "1.0.0"
+    }
+
+# Serve static files at root (fallback for local development only, disabled on Render)
+if not os.getenv("RENDER"):
+    FRONTEND_DIR = os.path.join(BASE_DIR, "..", "frontend")
+    if os.path.exists(FRONTEND_DIR):
+        app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 
 if __name__ == "__main__":
     import uvicorn
