@@ -1,10 +1,18 @@
 {
+  "version": 2,
   "cleanUrls": true,
-  "outputDirectory": "frontend",
   "rewrites": [
     {
       "source": "/api/:path*",
       "destination": "https://cbdc-backend.onrender.com/api/:path*"
+    },
+    {
+      "source": "/assets/:path*",
+      "destination": "/frontend/assets/:path*"
+    },
+    {
+      "source": "/((?!api|frontend|assets).*)|/",
+      "destination": "/frontend/index.html"
     }
   ]
 }
