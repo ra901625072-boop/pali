@@ -9,20 +9,22 @@ const ApiClient = {
 
   setToken(token) {
     this.token = token;
-    try { localStorage.setItem('cbdc_jwt', token); } catch (e) {}
+    try { sessionStorage.setItem('cbdc_jwt', token); } catch (e) {}
   },
 
   clearToken() {
     this.token = null;
-    try { localStorage.removeItem('cbdc_jwt'); } catch (e) {}
+    try { sessionStorage.removeItem('cbdc_jwt'); } catch (e) {}
   },
 
   restoreToken() {
     try {
-      const saved = localStorage.getItem('cbdc_jwt');
+      const saved = sessionStorage.getItem('cbdc_jwt');
       if (saved) this.token = saved;
     } catch (e) {}
   },
+
+  latestGetRequestId: {},
 
   async request(method, path, body) {
     const headers = { 'Content-Type': 'application/json' };
@@ -31,8 +33,27 @@ const ApiClient = {
     const opts = { method, headers };
     if (body && method !== 'GET') opts.body = JSON.stringify(body);
 
+    const isGet = (method === 'GET');
+    let currentGetId = 0;
+    if (isGet) {
+      if (!this.latestGetRequestId) this.latestGetRequestId = {};
+      this.latestGetRequestId[path] = (this.latestGetRequestId[path] || 0) + 1;
+      currentGetId = this.latestGetRequestId[path];
+    }
+
     const res = await fetch(`${this.BASE}${path}`, opts);
-    const data = await res.json();
+    
+    let data = {};
+    const text = await res.text();
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        data = { error: text };
+      }
+    } else if (!res.ok) {
+      data = { error: `HTTP error ${res.status}` };
+    }
 
     if (!res.ok) {
       const err = new Error(data.error || `API error ${res.status}`);
@@ -40,6 +61,13 @@ const ApiClient = {
       err.data = data;
       throw err;
     }
+
+    if (isGet && currentGetId !== this.latestGetRequestId[path]) {
+      const err = new Error("Request superseded");
+      err.isSuperseded = true;
+      throw err;
+    }
+
     return data;
   },
 
@@ -130,10 +158,26 @@ function generateSessionToken() {
   return `SES-CBDC-${token}`;
 }
 
+function getJwtExpiry(token) {
+  try {
+    if (!token) return null;
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    const payload = JSON.parse(jsonPayload);
+    return payload.exp ? payload.exp * 1000 : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 function createAdminSession(token, user) {
   const sessionId = generateSessionToken();
   const now = Date.now();
-  const expiresAt = now + (30 * 60 * 1000); // 30 mins
+  const jwtExp = getJwtExpiry(token);
+  const expiresAt = jwtExp || (now + (30 * 60 * 1000)); // 30 mins fallback
 
   ApiClient.setToken(token);
 
@@ -145,7 +189,7 @@ function createAdminSession(token, user) {
   };
 
   try {
-    localStorage.setItem('cbdc_admin_session', JSON.stringify(sessionData));
+    sessionStorage.setItem('cbdc_admin_session', JSON.stringify(sessionData));
   } catch (e) {
     console.error("Error saving admin session:", e);
   }
@@ -162,7 +206,7 @@ function createAdminSession(token, user) {
 
 async function checkAndRestoreAdminSession() {
   try {
-    const raw = localStorage.getItem('cbdc_admin_session');
+    const raw = sessionStorage.getItem('cbdc_admin_session');
     if (!raw) return false;
 
     const sessionData = JSON.parse(raw);
@@ -179,11 +223,22 @@ async function checkAndRestoreAdminSession() {
       return false;
     }
 
+    const jwtExp = getJwtExpiry(ApiClient.token);
+    if (!jwtExp || now >= jwtExp) {
+      destroyAdminSession('expired_on_load');
+      return false;
+    }
+
     try {
       const user = await ApiClient.getMe();
       adminState.isAuthenticated = true;
       adminState.username = user.username || sessionData.username || '';
       adminState.sessionId = sessionData.sessionId;
+
+      sessionData.username = user.username || sessionData.username || '';
+      if (jwtExp) sessionData.expiresAt = jwtExp;
+      sessionStorage.setItem('cbdc_admin_session', JSON.stringify(sessionData));
+
       updateSessionBadgeUI();
       scheduleSessionExpiryTimer(sessionData.expiresAt - now);
       startAutoRefresh();
@@ -216,7 +271,7 @@ function destroyAdminSession(reason) {
   ApiClient.clearToken();
 
   try {
-    localStorage.removeItem('cbdc_admin_session');
+    sessionStorage.removeItem('cbdc_admin_session');
   } catch (e) {}
 
   adminState.isAuthenticated = false;
@@ -268,6 +323,7 @@ function startAutoRefresh() {
         renderAdminDashboard();
       }
     } catch (e) {
+      if (e.isSuperseded) return;
       console.warn('Auto-refresh failed:', e.message);
     }
   }, 5000); // Poll every 5s in background
@@ -287,7 +343,7 @@ function updateSessionBadgeUI() {
 
   if (adminState.isAuthenticated && adminState.sessionId) {
     try {
-      const raw = localStorage.getItem('cbdc_admin_session');
+      const raw = sessionStorage.getItem('cbdc_admin_session');
       if (raw) {
         const s = JSON.parse(raw);
         const minsLeft = Math.max(0, Math.ceil((s.expiresAt - Date.now()) / (60 * 1000)));
@@ -330,6 +386,7 @@ async function triggerManualSync() {
       renderAdminDashboard();
     }
   } catch (err) {
+    if (err.isSuperseded) return;
     console.warn("Manual sync error:", err);
   }
 
@@ -423,8 +480,13 @@ function loadOnboardingOverrides() {
     if (saved) {
       adminState.onboardingOverrides = JSON.parse(saved);
       appData.beneficiaries.forEach(b => {
-        if (adminState.onboardingOverrides[b.sr_no] !== undefined) {
-          b.onboarded = adminState.onboardingOverrides[b.sr_no];
+        const o = adminState.onboardingOverrides[b.sr_no];
+        if (o && typeof o === 'object') {
+          if (o.onboarded !== undefined) b.onboarded = o.onboarded;
+          if (o.rc_onboarded !== undefined) b.rc_onboarded = o.rc_onboarded;
+          if (o.version !== undefined) b.version = o.version;
+        } else if (o !== undefined) {
+          b.onboarded = o;
         }
       });
     }
@@ -444,6 +506,7 @@ async function loadDataFromAPI() {
     dataFromApi = true;
     return true;
   } catch (e) {
+    if (e.isSuperseded) throw e;
     console.warn('API data fetch failed:', e.message);
     return false;
   }
@@ -452,9 +515,14 @@ async function loadDataFromAPI() {
 async function loadData() {
   let data = null;
 
-  const apiLoaded = await loadDataFromAPI();
-  if (apiLoaded) {
-    data = { metadata: appData.metadata, beneficiaries: appData.beneficiaries };
+  try {
+    const apiLoaded = await loadDataFromAPI();
+    if (apiLoaded) {
+      data = { metadata: appData.metadata, beneficiaries: appData.beneficiaries };
+    }
+  } catch (e) {
+    if (e.isSuperseded) throw e;
+    console.warn("loadDataFromAPI failed:", e);
   }
 
   if (!data) {
@@ -1057,11 +1125,24 @@ async function toggleBeneficiaryStatus(srNo, field = 'onboarded') {
     }
   } else {
     // Offline / Fallback mode
-    adminState.onboardingOverrides[srNo] = newStatus;
+    if (!adminState.onboardingOverrides[srNo] || typeof adminState.onboardingOverrides[srNo] !== 'object') {
+      const oldOnboarded = typeof adminState.onboardingOverrides[srNo] === 'string' ? adminState.onboardingOverrides[srNo] : beneficiary.onboarded;
+      adminState.onboardingOverrides[srNo] = {
+        onboarded: oldOnboarded,
+        rc_onboarded: beneficiary.rc_onboarded,
+        version: currentVersion
+      };
+    }
+    
+    adminState.onboardingOverrides[srNo][field] = newStatus;
+    adminState.onboardingOverrides[srNo].version = currentVersion + 1;
+    
     try {
       localStorage.setItem('cbdc_onboarding_overrides', JSON.stringify(adminState.onboardingOverrides));
     } catch (e) {}
-    showToast(newStatus === "Yes" ? `✅ ${beneficiary.name} — ઓનબોર્ડ થયું! (ઓફલાઇન)` : `⏳ ${beneficiary.name} — પેન્ડિંગ સેટ થયું! (ઓફલાઇન)`);
+    
+    const label = field === 'rc_onboarded' ? 'RC ઓનબોર્ડિંગ' : 'ઓનબોર્ડિંગ';
+    showToast(newStatus === "Yes" ? `✅ ${beneficiary.name} — ${label} સફળ ઓનબોર્ડ! (ઓફલાઇન)` : `⏳ ${beneficiary.name} — ${label} પેન્ડિંગ! (ઓફલાઇન)`);
 
     if (targetRow) {
       targetRow.classList.remove('row-updating');

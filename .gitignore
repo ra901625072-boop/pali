@@ -1,6 +1,8 @@
 # Database
-backend/database.db
-backend/database.db-journal
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
 
 # Python
 __pycache__/
@@ -18,7 +20,8 @@ backend/*.pyd
 backend/.pytest_cache/
 backend/venv/
 backend/env/
-backend/.env
+.env
+*.env
 
 # OS-specific
 Thumbs.db

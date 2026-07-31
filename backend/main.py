@@ -11,7 +11,13 @@ import bcrypt
 import datetime
 import os
 
-SECRET_KEY = os.getenv("JWT_SECRET", "cbdc_super_secret_jwt_key_97_pali")
+SECRET_KEY = os.getenv("JWT_SECRET")
+if not SECRET_KEY:
+    if os.getenv("RENDER") or os.getenv("NODE_ENV") == "production":
+        raise RuntimeError("JWT_SECRET environment variable is required in production.")
+    else:
+        SECRET_KEY = "cbdc_dev_fallback_secret_key_change_me_in_prod"
+        print("WARNING: JWT_SECRET environment variable is missing. Using local development fallback secret.")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.getenv("DATABASE_PATH", os.path.join(BASE_DIR, "database.db"))
 
@@ -19,22 +25,84 @@ app = FastAPI(title="CBDC Ration Portal API")
 
 @app.on_event("startup")
 def on_startup():
+    db_url = os.getenv("DATABASE_URL")
+    if db_url:
+        print("Checking if PostgreSQL database needs seeding...")
+        needs_seeding = False
+        try:
+            import psycopg2
+            conn = psycopg2.connect(db_url)
+            cursor = conn.cursor()
+            cursor.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users')")
+            exists = cursor.fetchone()[0]
+            if not exists:
+                needs_seeding = True
+            else:
+                cursor.execute("SELECT COUNT(*) FROM users")
+                if cursor.fetchone()[0] == 0:
+                    needs_seeding = True
+            conn.close()
+        except Exception as e:
+            print(f"Error checking PostgreSQL state: {e}")
+            
+        if needs_seeding:
+            print("PostgreSQL needs seeding. Auto-seeding database...")
+            from seed import seed
+            try:
+                seed(force=True)
+            except Exception as e:
+                print(f"Failed to auto-seed PostgreSQL database: {e}")
+        return
+
     db_dir = os.path.dirname(DB_PATH)
     if db_dir and not os.path.exists(db_dir):
         os.makedirs(db_dir, exist_ok=True)
         
+    # Check if database needs seeding (file missing or table missing/empty)
+    needs_seeding = False
     if not os.path.exists(DB_PATH):
-        print(f"Database not found at {DB_PATH}. Auto-seeding database...")
+        needs_seeding = True
+    else:
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+            if not cursor.fetchone():
+                needs_seeding = True
+            else:
+                cursor.execute("SELECT COUNT(*) FROM users")
+                if cursor.fetchone()[0] == 0:
+                    needs_seeding = True
+            conn.close()
+        except Exception as e:
+            print(f"Error checking database state: {e}")
+            needs_seeding = True
+            
+    if needs_seeding:
+        print(f"Database needs seeding. Auto-seeding database at {DB_PATH}...")
         from seed import seed
         try:
             seed(force=True)
         except Exception as e:
             print(f"Failed to auto-seed database: {e}")
 
-# Add CORS Middleware
+# Add CORS Middleware with restricted origins
+CORS_ORIGINS = [
+    "https://pali-omega.vercel.app",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5000",
+    "http://127.0.0.1:5000",
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+]
+env_origins = os.getenv("CORS_ORIGINS")
+if env_origins:
+    CORS_ORIGINS.extend([o.strip() for o in env_origins.split(",") if o.strip()])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -56,37 +124,128 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid session token")
 
+# Database Connection Wrapper classes
+class DatabaseCursor:
+    def __init__(self, cursor, is_postgres: bool):
+        self.cursor = cursor
+        self.is_postgres = is_postgres
+
+    def execute(self, sql: str, params=None):
+        if self.is_postgres:
+            sql = sql.replace("?", "%s")
+        if params is None:
+            self.cursor.execute(sql)
+        else:
+            self.cursor.execute(sql, params)
+        return self
+
+    def fetchone(self):
+        row = self.cursor.fetchone()
+        if row is None:
+            return None
+        return dict(row)
+
+    def fetchall(self):
+        rows = self.cursor.fetchall()
+        return [dict(r) for r in rows]
+
+    def close(self):
+        self.cursor.close()
+
+class DatabaseConnection:
+    def __init__(self, conn, is_postgres: bool):
+        self.conn = conn
+        self.is_postgres = is_postgres
+
+    def cursor(self):
+        if self.is_postgres:
+            from psycopg2.extras import RealDictCursor
+            return DatabaseCursor(self.conn.cursor(cursor_factory=RealDictCursor), True)
+        else:
+            return DatabaseCursor(self.conn.cursor(), False)
+
+    def execute(self, sql: str, params=None):
+        cursor = self.cursor()
+        cursor.execute(sql, params)
+        return cursor
+
+    def commit(self):
+        self.conn.commit()
+
+    def rollback(self):
+        self.conn.rollback()
+
+    def close(self):
+        self.conn.close()
+
 # Database Connection Helper
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    db_url = os.getenv("DATABASE_URL")
+    if db_url:
+        try:
+            import psycopg2
+            conn = psycopg2.connect(db_url)
+            try:
+                yield DatabaseConnection(conn, is_postgres=True)
+            finally:
+                conn.close()
+            return
+        except Exception as e:
+            print(f"Failed to connect to PostgreSQL: {e}. Falling back to SQLite.")
+
+    conn = sqlite3.connect(DB_PATH, timeout=30.0, check_same_thread=False)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL;")
+    except Exception as e:
+        print(f"Failed to enable WAL mode: {e}")
     conn.row_factory = sqlite3.Row
     try:
-        yield conn
+        yield DatabaseConnection(conn, is_postgres=False)
     finally:
         conn.close()
 
-# Keep JSON file in sync as a backup
-def update_json_backup(sr_no: int, field: str, status: str):
+# Keep JSON file in sync as a backup by regenerating it from the DB
+# Keep JSON file in sync as a backup by regenerating it from the DB
+def regenerate_json_backup(db):
     json_path = os.path.join(BASE_DIR, "..", "frontend", "assets", "data", "data.json")
-    if not os.path.exists(json_path):
+    if not os.path.exists(os.path.dirname(json_path)):
         return
     try:
         import json
-        with open(json_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        cursor = db.cursor()
         
-        updated = False
-        for b in data.get("beneficiaries", []):
-            if b.get("sr_no") == sr_no:
-                b[field] = status
-                updated = True
-                break
+        # Fetch metadata
+        cursor.execute("SELECT district, taluka, fps_area, generated_on FROM metadata LIMIT 1")
+        meta_row = cursor.fetchone()
+        metadata = dict(meta_row) if meta_row else {
+            "district": "મહેસાણા",
+            "taluka": "ઊંઝા",
+            "fps_area": "",
+            "generated_on": ""
+        }
         
-        if updated:
-            with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+        # Fetch beneficiaries
+        cursor.execute("SELECT * FROM beneficiaries ORDER BY sr_no ASC")
+        rows = cursor.fetchall()
+        
+        beneficiaries = []
+        for row in rows:
+            b = dict(row)
+            b["sr_no"] = int(b["sr_no"])
+            b["version"] = int(b["version"])
+            beneficiaries.append(b)
+            
+        data = {
+            "metadata": metadata,
+            "beneficiaries": beneficiaries
+        }
+        
+        temp_path = json_path + ".tmp"
+        with open(temp_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(temp_path, json_path)
     except Exception as e:
-        print(f"Error updating JSON backup: {e}")
+        print(f"Error regenerating JSON backup: {e}")
 
 # Request Models
 class LoginRequest(BaseModel):
@@ -99,10 +258,35 @@ class OnboardingUpdate(BaseModel):
     version: int
     remarks: Optional[str] = ""
 
+# Simple in-memory rate limiter for login
+login_attempts = {}
+
+def rate_limit_login(request: Request):
+    client_host = request.client.host if request.client else "unknown"
+    client_ip = request.headers.get("x-forwarded-for") or client_host or "unknown"
+    
+    import datetime
+    now = datetime.datetime.utcnow().timestamp()
+    
+    # Clean old attempts (older than 60 seconds)
+    if client_ip in login_attempts:
+        login_attempts[client_ip] = [t for t in login_attempts[client_ip] if now - t < 60]
+    else:
+        login_attempts[client_ip] = []
+        
+    # Limit to 5 attempts per minute
+    if len(login_attempts[client_ip]) >= 5:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many login attempts. Please try again in a minute."
+        )
+        
+    login_attempts[client_ip].append(now)
+
 # --- API ROUTES ---
 
 @app.post("/api/auth/login")
-def login(req: LoginRequest, db: sqlite3.Connection = Depends(get_db)):
+def login(req: LoginRequest, db = Depends(get_db), _ = Depends(rate_limit_login)):
     cursor = db.cursor()
     cursor.execute("SELECT * FROM users WHERE username = ?", (req.username.strip(),))
     row = cursor.fetchone()
@@ -113,7 +297,7 @@ def login(req: LoginRequest, db: sqlite3.Connection = Depends(get_db)):
     user = dict(row)
     password_hash = user.get("password_hash")
     
-    if not bcrypt.checkpw(req.password.encode('utf-8'), password_hash.encode('utf-8')):
+    if not password_hash or not bcrypt.checkpw(req.password.encode('utf-8'), password_hash.encode('utf-8')):
         raise HTTPException(status_code=401, detail="Incorrect ID or password")
         
     # Generate JWT
@@ -141,7 +325,7 @@ def logout():
     return {"success": True}
 
 @app.get("/api/auth/me")
-def get_me(user_id: str = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
+def get_me(user_id: str = Depends(get_current_user), db = Depends(get_db)):
     cursor = db.cursor()
     cursor.execute("SELECT id, username, role, district, taluka FROM users WHERE id = ?", (user_id,))
     row = cursor.fetchone()
@@ -150,7 +334,7 @@ def get_me(user_id: str = Depends(get_current_user), db: sqlite3.Connection = De
     return dict(row)
 
 @app.get("/api/beneficiaries")
-def get_beneficiaries(status: Optional[str] = None, db: sqlite3.Connection = Depends(get_db)):
+def get_beneficiaries(status: Optional[str] = None, db = Depends(get_db)):
     cursor = db.cursor()
     
     # Get metadata
@@ -181,7 +365,7 @@ def get_beneficiaries(status: Optional[str] = None, db: sqlite3.Connection = Dep
     }
 
 @app.get("/api/beneficiaries/{srNo}")
-def get_beneficiary(srNo: int, db: sqlite3.Connection = Depends(get_db)):
+def get_beneficiary(srNo: int, db = Depends(get_db)):
     cursor = db.cursor()
     cursor.execute("SELECT * FROM beneficiaries WHERE sr_no = ?", (srNo,))
     row = cursor.fetchone()
@@ -195,13 +379,15 @@ def update_onboarding(
     body: OnboardingUpdate, 
     request: Request,
     user_id: str = Depends(get_current_user), 
-    db: sqlite3.Connection = Depends(get_db)
+    db = Depends(get_db)
 ):
     if body.field not in ["onboarded", "rc_onboarded"]:
         raise HTTPException(status_code=400, detail="Invalid field name")
     if body.status not in ["Yes", "No"]:
         raise HTTPException(status_code=400, detail="Invalid status value")
         
+    if not db.is_postgres:
+        db.conn.execute("BEGIN IMMEDIATE")
     cursor = db.cursor()
     
     # Fetch beneficiary to check existence and current state
@@ -253,7 +439,7 @@ def update_onboarding(
     ))
     
     db.commit()
-    update_json_backup(srNo, body.field, body.status)
+    regenerate_json_backup(db)
     
     return {
         "sr_no": srNo,
@@ -265,7 +451,7 @@ def update_onboarding(
     }
 
 @app.get("/api/dashboard")
-def get_dashboard(user_id: str = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
+def get_dashboard(user_id: str = Depends(get_current_user), db = Depends(get_db)):
     cursor = db.cursor()
     
     # Counts
@@ -325,7 +511,7 @@ def get_dashboard(user_id: str = Depends(get_current_user), db: sqlite3.Connecti
     }
 
 @app.get("/api/audit")
-def get_audit(limit: int = 20, user_id: str = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
+def get_audit(limit: int = 20, user_id: str = Depends(get_current_user), db = Depends(get_db)):
     safe_limit = min(max(1, limit), 100)
     cursor = db.cursor()
     cursor.execute("""
@@ -357,7 +543,7 @@ def get_audit(limit: int = 20, user_id: str = Depends(get_current_user), db: sql
     return {"events": events}
 
 @app.get("/api/sync/latest")
-def sync_latest(user_id: str = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)):
+def sync_latest(user_id: str = Depends(get_current_user), db = Depends(get_db)):
     cursor = db.cursor()
     cursor.execute("""
     SELECT sr_no, onboarded, rc_onboarded, version 
