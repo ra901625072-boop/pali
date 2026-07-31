@@ -41,6 +41,19 @@ def on_startup():
                 cursor.execute("SELECT COUNT(*) FROM users")
                 if cursor.fetchone()[0] == 0:
                     needs_seeding = True
+            
+            # Ensure audit_logs.ip column type is VARCHAR(255) in existing DB
+            try:
+                cursor.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'audit_logs')")
+                audit_logs_exists = cursor.fetchone()[0]
+                if audit_logs_exists:
+                    print("Ensuring audit_logs.ip column type is VARCHAR(255)...")
+                    cursor.execute("ALTER TABLE audit_logs ALTER COLUMN ip TYPE VARCHAR(255)")
+                    conn.commit()
+            except Exception as migration_error:
+                print(f"Migration error (altering audit_logs.ip): {migration_error}")
+                conn.rollback()
+
             conn.close()
         except Exception as e:
             print(f"Error checking PostgreSQL state: {e}")
@@ -182,16 +195,19 @@ class DatabaseConnection:
 def get_db():
     db_url = os.getenv("DATABASE_URL")
     if db_url:
+        conn = None
         try:
             import psycopg2
             conn = psycopg2.connect(db_url)
+        except Exception as e:
+            print(f"Failed to connect to PostgreSQL: {e}. Falling back to SQLite.")
+
+        if conn is not None:
             try:
                 yield DatabaseConnection(conn, is_postgres=True)
             finally:
                 conn.close()
             return
-        except Exception as e:
-            print(f"Failed to connect to PostgreSQL: {e}. Falling back to SQLite.")
 
     conn = sqlite3.connect(DB_PATH, timeout=30.0, check_same_thread=False)
     try:

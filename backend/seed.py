@@ -82,7 +82,7 @@ def seed(force=False):
             old_status VARCHAR(50),
             new_status VARCHAR(50),
             remarks TEXT,
-            ip VARCHAR(50),
+            ip VARCHAR(255),
             timestamp VARCHAR(100) NOT NULL
         )
         """)
