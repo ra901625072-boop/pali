@@ -54,6 +54,25 @@ def on_startup():
                 print(f"Migration error (altering audit_logs.ip): {migration_error}")
                 conn.rollback()
 
+            # Ensure beneficiaries columns onboarded_date and rc_onboarded_date exist
+            try:
+                cursor.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'beneficiaries')")
+                beneficiaries_exists = cursor.fetchone()[0]
+                if beneficiaries_exists:
+                    cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name='beneficiaries' AND column_name='onboarded_date'")
+                    if not cursor.fetchone():
+                        print("Adding column onboarded_date to beneficiaries table (Postgres)...")
+                        cursor.execute("ALTER TABLE beneficiaries ADD COLUMN onboarded_date VARCHAR(100) DEFAULT NULL")
+                        conn.commit()
+                    cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name='beneficiaries' AND column_name='rc_onboarded_date'")
+                    if not cursor.fetchone():
+                        print("Adding column rc_onboarded_date to beneficiaries table (Postgres)...")
+                        cursor.execute("ALTER TABLE beneficiaries ADD COLUMN rc_onboarded_date VARCHAR(100) DEFAULT NULL")
+                        conn.commit()
+            except Exception as pg_mig_err:
+                print(f"PostgreSQL migration error (onboarded_date columns): {pg_mig_err}")
+                conn.rollback()
+
             conn.close()
         except Exception as e:
             print(f"Error checking PostgreSQL state: {e}")
@@ -98,6 +117,28 @@ def on_startup():
             seed(force=True)
         except Exception as e:
             print(f"Failed to auto-seed database: {e}")
+    else:
+        # Run migration for SQLite if DB exists but missing new columns
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(beneficiaries)")
+            columns = [col[1] for col in cursor.fetchall()]
+            if columns:
+                needs_commit = False
+                if "onboarded_date" not in columns:
+                    print("Adding column onboarded_date to beneficiaries table (SQLite)...")
+                    cursor.execute("ALTER TABLE beneficiaries ADD COLUMN onboarded_date TEXT DEFAULT NULL")
+                    needs_commit = True
+                if "rc_onboarded_date" not in columns:
+                    print("Adding column rc_onboarded_date to beneficiaries table (SQLite)...")
+                    cursor.execute("ALTER TABLE beneficiaries ADD COLUMN rc_onboarded_date TEXT DEFAULT NULL")
+                    needs_commit = True
+                if needs_commit:
+                    conn.commit()
+            conn.close()
+        except Exception as sqlite_mig_err:
+            print(f"SQLite migration error (onboarded_date columns): {sqlite_mig_err}")
 
 # Add CORS Middleware with restricted origins
 CORS_ORIGINS = [
@@ -435,10 +476,13 @@ def update_onboarding(
     new_version = db_version + 1
     now_str = datetime.datetime.utcnow().isoformat() + "Z"
     
+    date_field = f"{body.field}_date"
+    date_val = now_str if body.status == "Yes" else None
+    
     # Update DB
     cursor.execute(
-        f"UPDATE beneficiaries SET {body.field} = ?, version = ? WHERE sr_no = ?",
-        (body.status, new_version, srNo)
+        f"UPDATE beneficiaries SET {body.field} = ?, {date_field} = ?, version = ? WHERE sr_no = ?",
+        (body.status, date_val, new_version, srNo)
     )
     
     # Log audit trail
@@ -461,6 +505,8 @@ def update_onboarding(
         "sr_no": srNo,
         "onboarded": body.status if body.field == "onboarded" else b["onboarded"],
         "rc_onboarded": body.status if body.field == "rc_onboarded" else b["rc_onboarded"],
+        "onboarded_date": date_val if body.field == "onboarded" else b.get("onboarded_date"),
+        "rc_onboarded_date": date_val if body.field == "rc_onboarded" else b.get("rc_onboarded_date"),
         "version": new_version,
         "updatedBy": user_id,
         "updatedAt": now_str

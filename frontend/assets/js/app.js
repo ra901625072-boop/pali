@@ -473,6 +473,22 @@ function switchTab(tabId) {
 }
 window.switchTab = switchTab;
 
+function formatDateTime(dateStr) {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
+  } catch (e) {
+    return dateStr;
+  }
+}
+
 // --- Data Loading & Merging ---
 function loadOnboardingOverrides() {
   try {
@@ -483,7 +499,9 @@ function loadOnboardingOverrides() {
         const o = adminState.onboardingOverrides[b.sr_no];
         if (o && typeof o === 'object') {
           if (o.onboarded !== undefined) b.onboarded = o.onboarded;
+          if (o.onboarded_date !== undefined) b.onboarded_date = o.onboarded_date;
           if (o.rc_onboarded !== undefined) b.rc_onboarded = o.rc_onboarded;
+          if (o.rc_onboarded_date !== undefined) b.rc_onboarded_date = o.rc_onboarded_date;
           if (o.version !== undefined) b.version = o.version;
         } else if (o !== undefined) {
           b.onboarded = o;
@@ -1028,11 +1046,15 @@ function renderAdminTable() {
   list.forEach(b => {
     const isOnboarded = b.onboarded === "Yes";
     const isRcOnboarded = b.rc_onboarded === "Yes";
+    
+    const onboardedDateStr = b.onboarded_date ? `<div class="status-date-sub">${formatDateTime(b.onboarded_date)}</div>` : '';
     const statusTag = isOnboarded 
-      ? `<span class="onboarded-tag yes">✓ ઓનબોર્ડેડ</span>` 
+      ? `<div class="status-cell-container"><span class="onboarded-tag yes">✓ ઓનબોર્ડેડ</span>${onboardedDateStr}</div>` 
       : `<span class="onboarded-tag no">⏳ પેન્ડિંગ</span>`;
+      
+    const rcOnboardedDateStr = b.rc_onboarded_date ? `<div class="status-date-sub">${formatDateTime(b.rc_onboarded_date)}</div>` : '';
     const rcStatusTag = isRcOnboarded
-      ? `<span class="onboarded-tag yes">✓ RC</span>`
+      ? `<div class="status-cell-container"><span class="onboarded-tag yes">✓ RC</span>${rcOnboardedDateStr}</div>`
       : `<span class="onboarded-tag no">⏳ RC</span>`;
 
     html += `
@@ -1089,8 +1111,13 @@ async function toggleBeneficiaryStatus(srNo, field = 'onboarded') {
     checkboxes.forEach(cb => cb.disabled = true);
   }
 
+  const dateField = field + '_date';
+  const oldDate = beneficiary[dateField];
+  const newDate = newStatus === "Yes" ? new Date().toISOString() : null;
+
   // Optimistic update
   beneficiary[field] = newStatus;
+  beneficiary[dateField] = newDate;
   groupHouseholds();
   renderStats();
   renderList();
@@ -1100,6 +1127,10 @@ async function toggleBeneficiaryStatus(srNo, field = 'onboarded') {
     try {
       const result = await ApiClient.updateOnboarding(srNo, field, newStatus, currentVersion);
       adminState.versions[srNo] = result.version;
+      beneficiary.onboarded_date = result.onboarded_date;
+      beneficiary.rc_onboarded_date = result.rc_onboarded_date;
+      beneficiary.version = result.version;
+      renderAdminDashboard();
       const label = field === 'rc_onboarded' ? 'RC ઓનબોર્ડિંગ' : 'ઓનબોર્ડિંગ';
       showToast(newStatus === "Yes" ? `✅ ${beneficiary.name} — ${label} સફળતાપૂર્વક અપડેટ થયું!` : `⏳ ${beneficiary.name} — ${label} પેન્ડિંગ સેટ થયું!`);
     } catch (err) {
@@ -1110,6 +1141,7 @@ async function toggleBeneficiaryStatus(srNo, field = 'onboarded') {
       } else {
         // Revert
         beneficiary[field] = currentStatus;
+        beneficiary[dateField] = oldDate;
         groupHouseholds();
         renderStats();
         renderList();
@@ -1135,6 +1167,7 @@ async function toggleBeneficiaryStatus(srNo, field = 'onboarded') {
     }
     
     adminState.onboardingOverrides[srNo][field] = newStatus;
+    adminState.onboardingOverrides[srNo][dateField] = newDate;
     adminState.onboardingOverrides[srNo].version = currentVersion + 1;
     
     try {
@@ -1168,7 +1201,9 @@ const COLUMN_HEADERS_GUJ = {
   "member_id": "સભ્ય ID",
   "uid_masked": "આધાર નંબર",
   "onboarded": "ઓનબોર્ડિંગ સ્થિતિ",
+  "onboarded_date": "ઓનબોર્ડિંગ તારીખ",
   "rc_onboarded": "RC વેરિફિકેશન",
+  "rc_onboarded_date": "RC ઓનબોર્ડિંગ તારીખ",
   "shop_details": "રેશન દુકાન / વિસ્તાર"
 };
 
@@ -1181,7 +1216,9 @@ const COLUMN_HEADERS_ENG = {
   "member_id": "Member ID",
   "uid_masked": "Masked Aadhaar",
   "onboarded": "Onboarding Status",
+  "onboarded_date": "Onboarding Date",
   "rc_onboarded": "RC Onboarded",
+  "rc_onboarded_date": "RC Onboarding Date",
   "shop_details": "Shop / Location"
 };
 
@@ -1421,6 +1458,8 @@ function updateExportModalPreview() {
         const isYes = b[col] === 'Yes';
         val = isYes ? '✓' : '✗';
         fontStyle = 'font-weight: bold; font-size: 8.5px; color: #000000;';
+      } else if (col === 'onboarded_date' || col === 'rc_onboarded_date') {
+        val = b[col] ? formatDateTime(b[col]) : '-';
       } else if (col === 'area_name') {
         val = b.area_name ? b.area_name.split(':').pop().trim() : 'પળી';
         align = 'center';
@@ -1615,6 +1654,8 @@ function generateExcelExport(data, filterType) {
         rowObj[headerName] = b.onboarded === 'Yes' ? 'ઓનબોર્ડેડ' : 'પેન્ડિંગ';
       } else if (col === 'rc_onboarded') {
         rowObj[headerName] = b.rc_onboarded === 'Yes' ? 'ઓનબોર્ડેડ' : 'પેન્ડિંગ';
+      } else if (col === 'onboarded_date' || col === 'rc_onboarded_date') {
+        rowObj[headerName] = b[col] ? formatDateTime(b[col]) : '-';
       } else if (col === 'shop_details') {
         rowObj[headerName] = b.shop_name || 'પળી ગ્રામ પંચાયત';
       } else {
@@ -1687,7 +1728,9 @@ const COLUMN_HEADERS_SIMPLE = {
   "uid_masked": "આધાર નંબર",
   "area_name": "ગામ",
   "onboarded": "સ્થિતિ",
+  "onboarded_date": "ઓનબોર્ડ તારીખ",
   "rc_onboarded": "RC સ્થિતિ",
+  "rc_onboarded_date": "RC ઓનબોર્ડ તારીખ",
   "shop_details": "રેશન દુકાન"
 };
 
@@ -1736,6 +1779,8 @@ function generatePDFExport(data, filterType) {
         fontStyle = isYes 
           ? 'color: #000000; font-weight: bold; font-size: 13px;' 
           : 'color: #000000; font-weight: bold; font-size: 13px;';
+      } else if (col === 'onboarded_date' || col === 'rc_onboarded_date') {
+        val = b[col] ? formatDateTime(b[col]) : '-';
       } else if (col === 'area_name') {
         val = b.area_name ? b.area_name.split(':').pop().trim() : 'પળી';
         align = 'center';

@@ -67,6 +67,8 @@ def seed(force=False):
             uid_masked VARCHAR(50) NOT NULL,
             onboarded VARCHAR(10) DEFAULT 'No',
             rc_onboarded VARCHAR(10) DEFAULT 'No',
+            onboarded_date VARCHAR(100) DEFAULT NULL,
+            rc_onboarded_date VARCHAR(100) DEFAULT NULL,
             version INTEGER DEFAULT 0
         )
         """)
@@ -122,6 +124,8 @@ def seed(force=False):
             uid_masked TEXT NOT NULL,
             onboarded TEXT DEFAULT 'No',
             rc_onboarded TEXT DEFAULT 'No',
+            onboarded_date TEXT DEFAULT NULL,
+            rc_onboarded_date TEXT DEFAULT NULL,
             version INTEGER DEFAULT 0
         )
         """)
@@ -196,8 +200,8 @@ def seed(force=False):
         INSERT INTO beneficiaries (
             sr_no, name, ration_card, clean_ration_card, card_type, 
             shop_name, area_name, mobile, member_id, uid_masked, 
-            onboarded, rc_onboarded, version
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            onboarded, rc_onboarded, onboarded_date, rc_onboarded_date, version
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             b.get("sr_no"),
             b.get("name"),
@@ -211,6 +215,8 @@ def seed(force=False):
             b.get("uid_masked"),
             b.get("onboarded", "No"),
             b.get("rc_onboarded", "No"),
+            b.get("onboarded_date", None),
+            b.get("rc_onboarded_date", None),
             0 # version
         ))
 

@@ -835,8 +835,16 @@
                     <span>ઓનબોર્ડિંગ સ્થિતિ (Status)</span>
                   </label>
                   <label class="export-checkbox-item">
+                    <input type="checkbox" name="exportColumn" value="onboarded_date" onchange="handleExportConfigChange()">
+                    <span>ઓનબોર્ડિંગ તારીખ (Onboarding Date)</span>
+                  </label>
+                  <label class="export-checkbox-item">
                     <input type="checkbox" name="exportColumn" value="rc_onboarded" onchange="handleExportConfigChange()">
                     <span>RC વેરિફિકેશન (RC Status)</span>
+                  </label>
+                  <label class="export-checkbox-item">
+                    <input type="checkbox" name="exportColumn" value="rc_onboarded_date" onchange="handleExportConfigChange()">
+                    <span>RC ઓનબોર્ડિંગ તારીખ (RC Date)</span>
                   </label>
                   <label class="export-checkbox-item">
                     <input type="checkbox" name="exportColumn" value="shop_details" onchange="handleExportConfigChange()">
