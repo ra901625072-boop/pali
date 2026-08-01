@@ -1322,7 +1322,24 @@ function getExportFilteredData(filterType) {
     data = data.filter(b => b.rc_onboarded === targetRc);
   }
 
-  // 4. Search text filter
+  // 4. Custom date range filter
+  const startDateInput = document.getElementById('export-filter-start-date');
+  const endDateInput = document.getElementById('export-filter-end-date');
+  if ((startDateInput && startDateInput.value) || (endDateInput && endDateInput.value)) {
+    const startVal = startDateInput ? startDateInput.value : '';
+    const endVal = endDateInput ? endDateInput.value : '';
+    data = data.filter(b => {
+      const dates = [];
+      if (b.onboarded_date) dates.push(b.onboarded_date.slice(0, 10));
+      if (b.rc_onboarded_date) dates.push(b.rc_onboarded_date.slice(0, 10));
+      if (dates.length === 0) return false;
+      return dates.some(d => {
+        return (!startVal || d >= startVal) && (!endVal || d <= endVal);
+      });
+    });
+  }
+
+  // 5. Search text filter
   const searchInput = document.getElementById('export-search-input');
   if (searchInput && searchInput.value.trim() !== '') {
     const query = searchInput.value.trim().toLowerCase();
@@ -1594,6 +1611,11 @@ function openExportModal() {
     if (h.members.length >= 2) multiMemberCards.add(h.ration_card);
   });
   document.getElementById('exp-count-shared-card').textContent = appData.beneficiaries.filter(b => multiMemberCards.has(b.ration_card)).length;
+
+  const startDateInput = document.getElementById('export-filter-start-date');
+  const endDateInput = document.getElementById('export-filter-end-date');
+  if (startDateInput) startDateInput.value = '';
+  if (endDateInput) endDateInput.value = '';
 
   // Render the initial dynamically generated preview
   switchExportTab('filters');
