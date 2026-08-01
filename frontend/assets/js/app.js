@@ -1038,24 +1038,18 @@ function renderAdminTable() {
   }
 
   if (list.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding: 20px; color: var(--text-light);">કોઈ પરિણામ મળ્યું નથી.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px; color: var(--text-light);">કોઈ પરિણામ મળ્યું નથી.</td></tr>`;
     return;
   }
 
   let html = "";
   list.forEach(b => {
     const isOnboarded = b.onboarded === "Yes";
-    const isRcOnboarded = b.rc_onboarded === "Yes";
     
     const onboardedDateStr = b.onboarded_date ? `<div class="status-date-sub">${formatDateTime(b.onboarded_date)}</div>` : '';
     const statusTag = isOnboarded 
       ? `<div class="status-cell-container"><span class="onboarded-tag yes">✓ ઓનબોર્ડેડ</span>${onboardedDateStr}</div>` 
       : `<span class="onboarded-tag no">⏳ પેન્ડિંગ</span>`;
-      
-    const rcOnboardedDateStr = b.rc_onboarded_date ? `<div class="status-date-sub">${formatDateTime(b.rc_onboarded_date)}</div>` : '';
-    const rcStatusTag = isRcOnboarded
-      ? `<div class="status-cell-container"><span class="onboarded-tag yes">✓ RC</span>${rcOnboardedDateStr}</div>`
-      : `<span class="onboarded-tag no">⏳ RC</span>`;
 
     html += `
       <tr>
@@ -1069,15 +1063,6 @@ function renderAdminTable() {
           <div class="status-toggle-wrapper">
             <label class="toggle-switch">
               <input type="checkbox" ${isOnboarded ? 'checked' : ''} onchange="toggleBeneficiaryStatus(${b.sr_no}, 'onboarded')">
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-        </td>
-        <td>${rcStatusTag}</td>
-        <td>
-          <div class="status-toggle-wrapper">
-            <label class="toggle-switch">
-              <input type="checkbox" ${isRcOnboarded ? 'checked' : ''} onchange="toggleBeneficiaryStatus(${b.sr_no}, 'rc_onboarded')">
               <span class="toggle-slider"></span>
             </label>
           </div>
