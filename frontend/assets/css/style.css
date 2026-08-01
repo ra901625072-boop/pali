@@ -4141,6 +4141,9 @@ tr.row-updating .toggle-slider {
 
 /* Responsive Adaptations */
 @media (max-width: 768px) {
+  .export-hub-body {
+    overflow-y: auto !important;
+  }
   .export-hub-panels {
     grid-template-columns: 1fr;
     height: auto;

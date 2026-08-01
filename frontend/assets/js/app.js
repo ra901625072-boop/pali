@@ -1612,10 +1612,19 @@ function openExportModal() {
   });
   document.getElementById('exp-count-shared-card').textContent = appData.beneficiaries.filter(b => multiMemberCards.has(b.ration_card)).length;
 
+  const todayStr = new Date().toISOString().slice(0, 10);
   const startDateInput = document.getElementById('export-filter-start-date');
   const endDateInput = document.getElementById('export-filter-end-date');
-  if (startDateInput) startDateInput.value = '';
-  if (endDateInput) endDateInput.value = '';
+  if (startDateInput) {
+    startDateInput.value = '';
+    startDateInput.max = todayStr;
+    startDateInput.removeAttribute('min');
+  }
+  if (endDateInput) {
+    endDateInput.value = '';
+    endDateInput.max = todayStr;
+    endDateInput.removeAttribute('min');
+  }
 
   // Render the initial dynamically generated preview
   switchExportTab('filters');
@@ -2221,6 +2230,32 @@ function initActionCards() {
   }
 }
 
+function initExportModalListeners() {
+  const startDateInput = document.getElementById('export-filter-start-date');
+  const endDateInput = document.getElementById('export-filter-end-date');
+  
+  if (startDateInput && endDateInput) {
+    startDateInput.addEventListener('change', () => {
+      const startVal = startDateInput.value;
+      if (startVal) {
+        endDateInput.min = startVal;
+      } else {
+        endDateInput.removeAttribute('min');
+      }
+    });
+    
+    endDateInput.addEventListener('change', () => {
+      const endVal = endDateInput.value;
+      const todayStr = new Date().toISOString().slice(0, 10);
+      if (endVal) {
+        startDateInput.max = endVal;
+      } else {
+        startDateInput.max = todayStr;
+      }
+    });
+  }
+}
+
 // --- App Bootstrapping ---
 document.addEventListener('DOMContentLoaded', async () => {
   initRouter();
@@ -2229,6 +2264,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initAdminAuth();
   initLightbox();
   initActionCards();
+  initExportModalListeners();
 
   const isRestored = await checkAndRestoreAdminSession();
   if (isRestored) {
