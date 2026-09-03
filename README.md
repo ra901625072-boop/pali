@@ -1,94 +1,140 @@
-# CBDC Ration Portal
+﻿<div align="center">
 
-A web portal for managing CBDC (Central Bank Digital Currency) ration distribution. The project features a frontend hosted on **Vercel** and a backend API hosted on **Render**.
+# 🏦 Pali CBDC Ration Distribution Management Portal
 
-## Project Folder Structure
+<p align="center">
+  <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/Python_3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="Vercel" />
+  <img src="https://img.shields.io/badge/Render-46E3B7?style=for-the-badge&logo=render&logoColor=black" alt="Render" />
+  <img src="https://img.shields.io/badge/GovTech-Digital_India-FF9933?style=for-the-badge" alt="GovTech" />
+</p>
+
+<p align="center">
+  <b>Central Bank Digital Currency (CBDC) Beneficiary Allocation, Verification, and Distribution Auditing Platform</b>
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ra901625072-boop/Portfolio/main/public/assets/images/cbdc-pali.png" alt="Pali CBDC Portal Preview" width="85%" style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);" />
+</p>
+
+</div>
+
+---
+
+## 🌟 Overview
+
+**Pali CBDC Ration Distribution Portal** is a specialized GovTech web platform built for digital ration entitlement tracking and CBDC wallet transaction verification in Pali village. It automates beneficiary record lookup, allocation status tracking, quota deductions, and Talati audit log generation.
+
+---
+
+## ✨ Key Features
+
+- ⚡ **High-Speed FastAPI Backend:** Async REST API for instant beneficiary lookup by Ration Card ID, Aadhaar number, or family head name.
+- 🗄️ **Automated Seeding & Data Ingestion:** Dedicated database seeding script (`seed.py`) converting raw survey sheets (`raw data.xlsx`) into PostgreSQL / SQLite records.
+- 📊 **Talati Administrative Dashboard:** Real-time analytics on daily grain distributions, CBDC voucher redemptions, pending disbursements, and village quota fulfillment.
+- 🛡️ **Audit Logs & Security:** Tamper-evident transaction logging tracking time, officer ID, and beneficiary verification status.
+- ☁️ **Hybrid Production Architecture:** Backend deployed on **Render** with CORS proxying to a responsive frontend hosted on **Vercel**.
+
+---
+
+## 🏗️ Architecture Flow
+
+```mermaid
+flowchart LR
+    subgraph Client["Frontend (Vercel)"]
+        UI["💻 Talati Dashboard & Beneficiary Portal"]
+    end
+
+    subgraph Server["Backend API (Render)"]
+        API["⚡ FastAPI Application"]
+        Auth["🔑 JWT & Security Handlers"]
+        Reports["📄 Report Generator"]
+    end
+
+    subgraph DataStore["Database Layer"]
+        DB[("🐘 PostgreSQL / SQLite")]
+        RawData["📊 Raw Survey Sheets (.xlsx)"]
+    end
+
+    UI -->|HTTPS / REST API| API
+    API --> Auth
+    API --> DB
+    RawData -->|seed.py Ingestion| DB
+    API --> Reports
+```
+
+---
+
+## 📁 Repository Structure
 
 ```
 CBDCP/
 ├── backend/
-│   ├── .env                  # Backend environment configuration (gitignored)
-│   ├── .env.example          # Template for backend environment variables
-│   ├── database.db           # SQLite database (gitignored)
-│   ├── main.py               # FastAPI application
-│   ├── seed.py               # Database seeding script
-│   ├── requirements.txt      # Python dependencies for Render
-│   ├── raw data.xlsx         # Reference raw data
-│   └── reports/              # Generated reports directory
+│   ├── main.py               # FastAPI application & route endpoints
+│   ├── seed.py               # Database ingestion and seeding script
+│   ├── requirements.txt      # Python dependencies for Render / local runtime
+│   ├── database.db           # SQLite database (development)
+│   ├── raw data.xlsx         # Reference survey source records
+│   └── reports/              # Generated audit reports
 ├── frontend/
-│   ├── index.html            # Frontend entry point
-│   ├── vercel.json           # Vercel deployment config (API routing rewrites)
-│   └── assets/               # CSS, JS, Images, and JSON data fallbacks
-├── .gitignore                # Root gitignore
-└── README.md                 # Project README (this file)
+│   ├── index.html            # Dashboard web interface
+│   ├── vercel.json           # Vercel deployment routing & API rewrites
+│   └── assets/               # CSS styles, JS logic, and fallback datasets
+├── .gitignore                # Git exclusions
+└── README.md                 # Project documentation
 ```
 
 ---
 
-## Local Development Setup
+## 🚀 Getting Started
 
-To run the project locally, you can start the backend FastAPI server, which is also configured to serve the static frontend files as a fallback.
+### 1. Prerequisites
+- Python 3.10+
+- `pip`
 
-1. **Navigate to the root directory**:
-   ```bash
-   cd CBDCP
-   ```
+### 2. Local Setup
+```bash
+# Clone the repository
+git clone https://github.com/ra901625072-boop/pali.git
+cd pali
 
-2. **Install dependencies**:
-   Create a virtual environment (optional but recommended) and install dependencies:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: .\venv\Scripts\activate
-   pip install -r backend/requirements.txt
-   ```
+# Setup virtual environment
+python -m venv venv
+venv\Scripts\activate        # Linux/macOS: source venv/bin/activate
 
-3. **Database Seeding**:
-   If `backend/database.db` does not exist or you want to reset it, run:
-   ```bash
-   python backend/seed.py
-   # To force re-seeding and overwrite current database:
-   python backend/seed.py --force
-   ```
+# Install dependencies
+pip install -r backend/requirements.txt
+```
 
-4. **Run the server**:
-   ```bash
-   python backend/main.py
-   ```
-   This will start the FastAPI server at `http://127.0.0.1:8080`.
-   Open the link in your browser to view the application.
+### 3. Database Seeding
+```bash
+# Seed initial beneficiary records
+python backend/seed.py
+
+# Force re-seeding / reset database:
+python backend/seed.py --force
+```
+
+### 4. Run Development Server
+```bash
+python backend/main.py
+```
+FastAPI server starts at `http://127.0.0.1:8080`.
 
 ---
 
-## Deployment Instructions
+## 🌐 Production Deployment
 
-### 1. Backend (on Render)
+- **Backend (Render):** Deploy `backend/` folder as a Python Web Service. Set start command: `python main.py`.
+- **Frontend (Vercel):** Deploy `frontend/` folder. The `vercel.json` file handles reverse proxying `/api/*` to the Render backend.
 
-Deploy the `backend` folder as a **Web Service**:
-- **Environment**: Python
-- **Repository Root Directory**: `backend` (If setting it up as a separate project or setting the Root Directory setting in Render)
-  - *Note:* Render allows configuring a custom Root Directory under Advanced settings.
-- **Build Command**: `pip install -r requirements.txt`
-- **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT` (or `python main.py` as it automatically detects Render and binds to host `0.0.0.0` and the correct port).
-- **Environment Variables**:
-  - `JWT_SECRET`: A secure key used to generate/sign JWT tokens (e.g. `your_custom_jwt_secret`).
-  - `RENDER`: Set to `true` to enable production configurations.
+---
 
-### 2. Frontend (on Vercel)
+## 👨‍💻 Author
 
-Deploy the `frontend` folder to Vercel:
-- **Framework Preset**: Other / None (since it is a static site)
-- **Root Directory**: `frontend` (Ensure Vercel is pointed to the `frontend` subdirectory of your repository)
-- **CORS API Proxy**:
-  The `frontend/vercel.json` file is pre-configured to proxy `/api/...` requests directly to Render.
-  Make sure to update `frontend/vercel.json` with your actual Render service URL:
-  ```json
-  {
-    "cleanUrls": true,
-    "rewrites": [
-      {
-        "source": "/api/:path*",
-        "destination": "https://your-backend-render-url.onrender.com/api/:path*"
-      }
-    ]
-  }
-  ```
+**Akshaysinh Rajput**
+- 🌐 Portfolio: [portfolioakshay.in](https://portfolioakshay.in)
+- 💼 LinkedIn: [Akshaysinh Rajput](https://www.linkedin.com/in/akshaysinh-rajput-8a575532b/)
+- 🐙 GitHub: [@ra901625072-boop](https://github.com/ra901625072-boop)
