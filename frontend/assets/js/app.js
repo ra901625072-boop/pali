@@ -1886,6 +1886,10 @@ function openPrintableDocument({
   showEmblem,
   watermarkHtml
 }) {
+  const logoUrl = (typeof window !== 'undefined' && window.location && window.location.origin) 
+    ? (window.location.origin + '/assets/images/logo_web.png') 
+    : 'assets/images/logo_web.png';
+
   const docHtml = `
     <!DOCTYPE html>
     <html lang="gu">
@@ -2019,31 +2023,41 @@ function openPrintableDocument({
   } catch (e) {}
 
   if (printWin && !printWin.closed) {
-    printWin.document.open();
-    printWin.document.write(docHtml);
-    printWin.document.close();
-  } else {
-    // Popup blocked: Use hidden iframe so browser print / Save as PDF works seamlessly
-    let iframe = document.getElementById('print-export-iframe');
-    if (!iframe) {
-      iframe = document.createElement('iframe');
-      iframe.id = 'print-export-iframe';
-      iframe.style.position = 'fixed';
-      iframe.style.right = '0';
-      iframe.style.bottom = '0';
-      iframe.style.width = '0';
-      iframe.style.height = '0';
-      iframe.style.border = '0';
-      document.body.appendChild(iframe);
+    try {
+      printWin.document.open();
+      printWin.document.write(docHtml);
+      printWin.document.close();
+      return;
+    } catch (e) {
+      console.warn("Popup write failed, falling back to iframe:", e);
     }
-    const doc = iframe.contentWindow.document;
+  }
+
+  // Popup blocked or failed: Use hidden iframe so browser print / Save as PDF works seamlessly
+  let iframe = document.getElementById('print-export-iframe');
+  if (!iframe) {
+    iframe = document.createElement('iframe');
+    iframe.id = 'print-export-iframe';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+  }
+
+  const doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
+  if (doc) {
     doc.open();
     doc.write(docHtml);
     doc.close();
     setTimeout(() => {
       try {
-        iframe.contentWindow.focus();
-        iframe.contentWindow.print();
+        if (iframe.contentWindow) {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        }
       } catch (err) {
         showToast("⚠️ પ્રિન્ટિંગ શરૂ કરવામાં સમસ્યા આવી.");
       }
