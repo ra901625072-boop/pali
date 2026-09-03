@@ -2228,6 +2228,11 @@ button, input, select {
   justify-content: center;
 }
 
+.lightbox-modal.open,
+.lightbox-modal.active {
+  display: flex !important;
+}
+
 .lightbox-overlay {
   position: absolute;
   top: 0;

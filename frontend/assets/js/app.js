@@ -1886,15 +1886,7 @@ function openPrintableDocument({
   showEmblem,
   watermarkHtml
 }) {
-  const printWin = window.open('', '_blank');
-  if (!printWin) {
-    showToast("⚠️ પોપ-અપ બ્લોક થયેલ છે. કૃપા કરીને બ્રાઉઝરમાં પોપ-અપની મંજૂરી આપો.");
-    return;
-  }
-
-  const logoUrl = window.location.origin + '/assets/images/logo_web.png';
-
-  printWin.document.write(`
+  const docHtml = `
     <!DOCTYPE html>
     <html lang="gu">
       <head>
@@ -2019,8 +2011,44 @@ function openPrintableDocument({
         <\/script>
       </body>
     </html>
-  `);
-  printWin.document.close();
+  `;
+
+  let printWin = null;
+  try {
+    printWin = window.open('', '_blank');
+  } catch (e) {}
+
+  if (printWin && !printWin.closed) {
+    printWin.document.open();
+    printWin.document.write(docHtml);
+    printWin.document.close();
+  } else {
+    // Popup blocked: Use hidden iframe so browser print / Save as PDF works seamlessly
+    let iframe = document.getElementById('print-export-iframe');
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.id = 'print-export-iframe';
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      document.body.appendChild(iframe);
+    }
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(docHtml);
+    doc.close();
+    setTimeout(() => {
+      try {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      } catch (err) {
+        showToast("⚠️ પ્રિન્ટિંગ શરૂ કરવામાં સમસ્યા આવી.");
+      }
+    }, 400);
+  }
 }
 
 function generatePDFExport(data, filterType) {
