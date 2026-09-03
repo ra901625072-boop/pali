@@ -89,7 +89,7 @@ function authenticateToken(req, res, next) {
 }
 
 // --- Health / Status ---
-app.get(['/api', '/api/health'], (req, res) => {
+app.get(['/api', '/api/health', '/health', '/'], (req, res) => {
   res.json({
     status: 'online',
     message: 'CBDC Ration Portal API is running successfully on Node.js.',
@@ -98,7 +98,7 @@ app.get(['/api', '/api/health'], (req, res) => {
 });
 
 // --- Auth Routes ---
-app.post('/api/auth/login', rateLimitLogin, (req, res) => {
+app.post(['/api/auth/login', '/auth/login'], rateLimitLogin, (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) {
     return res.status(401).json({ error: 'Incorrect ID or password' });
@@ -137,11 +137,11 @@ app.post('/api/auth/login', rateLimitLogin, (req, res) => {
   });
 });
 
-app.post('/api/auth/logout', (req, res) => {
+app.post(['/api/auth/logout', '/auth/logout'], (req, res) => {
   res.json({ success: true });
 });
 
-app.get('/api/auth/me', authenticateToken, (req, res) => {
+app.get(['/api/auth/me', '/auth/me'], authenticateToken, (req, res) => {
   const user = DataStore.getUserById(req.user.userId);
   if (!user) {
     return res.status(401).json({ error: 'User not found' });
@@ -156,7 +156,7 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
 });
 
 // --- Beneficiaries Routes ---
-app.get('/api/beneficiaries', (req, res) => {
+app.get(['/api/beneficiaries', '/beneficiaries'], (req, res) => {
   const { status } = req.query;
   const metadata = DataStore.getMetadata();
   const beneficiaries = DataStore.getBeneficiaries(status);
@@ -166,7 +166,7 @@ app.get('/api/beneficiaries', (req, res) => {
   });
 });
 
-app.get('/api/beneficiaries/:srNo', (req, res) => {
+app.get(['/api/beneficiaries/:srNo', '/beneficiaries/:srNo'], (req, res) => {
   const beneficiary = DataStore.getBeneficiary(req.params.srNo);
   if (!beneficiary) {
     return res.status(404).json({ error: 'Beneficiary not found' });
@@ -174,7 +174,7 @@ app.get('/api/beneficiaries/:srNo', (req, res) => {
   res.json(beneficiary);
 });
 
-app.patch('/api/beneficiaries/:srNo/onboarding', authenticateToken, (req, res) => {
+app.patch(['/api/beneficiaries/:srNo/onboarding', '/beneficiaries/:srNo/onboarding'], authenticateToken, (req, res) => {
   const srNo = req.params.srNo;
   const { field, status, version, remarks } = req.body || {};
   const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
@@ -206,18 +206,18 @@ app.patch('/api/beneficiaries/:srNo/onboarding', authenticateToken, (req, res) =
 });
 
 // --- Dashboard & Audit ---
-app.get('/api/dashboard', authenticateToken, (req, res) => {
+app.get(['/api/dashboard', '/dashboard'], authenticateToken, (req, res) => {
   const stats = DataStore.getDashboardStats(req.user.userId);
   res.json(stats);
 });
 
-app.get('/api/audit', authenticateToken, (req, res) => {
+app.get(['/api/audit', '/audit'], authenticateToken, (req, res) => {
   const limit = req.query.limit || 20;
   const auditData = DataStore.getAuditLogs(req.user.userId, limit);
   res.json(auditData);
 });
 
-app.get('/api/sync/latest', authenticateToken, (req, res) => {
+app.get(['/api/sync/latest', '/sync/latest'], authenticateToken, (req, res) => {
   const syncData = DataStore.getSyncLatest();
   res.json(syncData);
 });
