@@ -27,10 +27,14 @@ const ApiClient = {
   latestGetRequestId: {},
 
   async request(method, path, body) {
-    const headers = { 'Content-Type': 'application/json' };
+    const headers = { 
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache'
+    };
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
 
-    const opts = { method, headers };
+    const opts = { method, headers, cache: 'no-store' };
     if (body && method !== 'GET') opts.body = JSON.stringify(body);
 
     const isGet = (method === 'GET');
@@ -41,7 +45,9 @@ const ApiClient = {
       currentGetId = this.latestGetRequestId[path];
     }
 
-    const res = await fetch(`${this.BASE}${path}`, opts);
+    const separator = path.includes('?') ? '&' : '?';
+    const finalPath = isGet ? `${path}${separator}_t=${Date.now()}` : path;
+    const res = await fetch(`${this.BASE}${finalPath}`, opts);
     
     let data = {};
     const text = await res.text();
@@ -309,13 +315,15 @@ function scheduleSessionExpiryTimer(msRemaining) {
 
 function startAutoRefresh() {
   stopAutoRefresh();
-  autoRefreshInterval = setInterval(async () => {
+
+  const performLiveSync = async () => {
     updateSessionBadgeUI();
     if (document.hidden) return;
 
     try {
       await loadDataFromAPI();
       groupHouseholds();
+      performSearch();
       renderStats();
       renderList();
       
@@ -326,7 +334,20 @@ function startAutoRefresh() {
       if (e.isSuperseded) return;
       console.warn('Auto-refresh failed:', e.message);
     }
-  }, 5000); // Poll every 5s in background
+  };
+
+  // Poll every 3 seconds for instant cross-device updates
+  autoRefreshInterval = setInterval(performLiveSync, 3000);
+
+  // Immediately refresh when user switches back to tab or unlocks device
+  if (!window._syncListenersAttached) {
+    window._syncListenersAttached = true;
+    window.addEventListener('focus', performLiveSync);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) performLiveSync();
+    });
+    window.addEventListener('online', performLiveSync);
+  }
 }
 
 def_stopAutoRefresh = () => {
@@ -467,6 +488,10 @@ function switchTab(tabId) {
 
   if (tabId === 'admin-tab' && adminState.isAuthenticated) {
     switchTataliSubpage(adminState.activeSubpage || 'dashboard');
+  } else if (tabId === 'list-tab' || tabId === 'home-tab') {
+    performSearch();
+    renderStats();
+    renderList();
   }
 
   window.scrollTo({ top: 0, behavior: 'instant' });
@@ -1104,9 +1129,11 @@ async function toggleBeneficiaryStatus(srNo, field = 'onboarded') {
   beneficiary[field] = newStatus;
   beneficiary[dateField] = newDate;
   groupHouseholds();
+  performSearch();
   renderStats();
   renderList();
   renderAdminDashboard();
+  broadcastStatusUpdate(srNo, field, newStatus, newDate, currentVersion + 1);
 
   if (adminState.isAuthenticated && ApiClient.token) {
     try {
@@ -1115,7 +1142,12 @@ async function toggleBeneficiaryStatus(srNo, field = 'onboarded') {
       beneficiary.onboarded_date = result.onboarded_date;
       beneficiary.rc_onboarded_date = result.rc_onboarded_date;
       beneficiary.version = result.version;
+      groupHouseholds();
+      performSearch();
+      renderStats();
+      renderList();
       renderAdminDashboard();
+      broadcastStatusUpdate(srNo, field, newStatus, result.onboarded_date, result.version);
       const label = field === 'rc_onboarded' ? 'RC ઓનબોર્ડિંગ' : 'ઓનબોર્ડિંગ';
       showToast(newStatus === "Yes" ? `✅ ${beneficiary.name} — ${label} સફળતાપૂર્વક અપડેટ થયું!` : `⏳ ${beneficiary.name} — ${label} પેન્ડિંગ સેટ થયું!`);
     } catch (err) {
@@ -1128,9 +1160,11 @@ async function toggleBeneficiaryStatus(srNo, field = 'onboarded') {
         beneficiary[field] = currentStatus;
         beneficiary[dateField] = oldDate;
         groupHouseholds();
+        performSearch();
         renderStats();
         renderList();
         renderAdminDashboard();
+        broadcastStatusUpdate(srNo, field, currentStatus, oldDate, currentVersion);
         showToast(`❌ અપડેટ અસફળ રહ્યું. સર્વર ભૂલ.`);
       }
     } finally {
@@ -1158,6 +1192,13 @@ async function toggleBeneficiaryStatus(srNo, field = 'onboarded') {
     try {
       localStorage.setItem('cbdc_onboarding_overrides', JSON.stringify(adminState.onboardingOverrides));
     } catch (e) {}
+
+    groupHouseholds();
+    performSearch();
+    renderStats();
+    renderList();
+    renderAdminDashboard();
+    broadcastStatusUpdate(srNo, field, newStatus, newDate, currentVersion + 1);
     
     const label = field === 'rc_onboarded' ? 'RC ઓનબોર્ડિંગ' : 'ઓનબોર્ડિંગ';
     showToast(newStatus === "Yes" ? `✅ ${beneficiary.name} — ${label} સફળ ઓનબોર્ડ! (ઓફલાઇન)` : `⏳ ${beneficiary.name} — ${label} પેન્ડિંગ! (ઓફલાઇન)`);
@@ -1171,7 +1212,45 @@ async function toggleBeneficiaryStatus(srNo, field = 'onboarded') {
 }
 window.toggleBeneficiaryStatus = toggleBeneficiaryStatus;
 
-// --- Export Center (New Implementation) ---
+// --- Realtime Cross-Tab / Cross-Window Sync ---
+function broadcastStatusUpdate(srNo, field, status, dateVal, version) {
+  try {
+    localStorage.setItem('cbdc_realtime_sync', JSON.stringify({
+      srNo: parseInt(srNo, 10),
+      field,
+      status,
+      dateVal,
+      version,
+      timestamp: Date.now()
+    }));
+  } catch (e) {}
+}
+
+window.addEventListener('storage', (e) => {
+  if (e.key === 'cbdc_realtime_sync' && e.newValue) {
+    try {
+      const data = JSON.parse(e.newValue);
+      const b = appData.beneficiaries.find(item => item.sr_no === data.srNo);
+      if (b) {
+        b[data.field] = data.status;
+        b[`${data.field}_date`] = data.dateVal;
+        if (data.version) {
+          b.version = data.version;
+          adminState.versions[data.srNo] = data.version;
+        }
+        groupHouseholds();
+        performSearch();
+        renderStats();
+        renderList();
+        if (adminState.isAuthenticated) {
+          renderAdminDashboard();
+        }
+      }
+    } catch (err) {
+      console.warn("Storage sync error:", err);
+    }
+  }
+});
 
 // --- Export Center ---
 let currentExportFormat = 'PDF';
@@ -1243,7 +1322,11 @@ window.handleExportConfigChange = handleExportConfigChange;
 
 function getSelectedExportColumns() {
   const checkedBoxes = document.querySelectorAll('input[name="exportColumn"]:checked');
-  return Array.from(checkedBoxes).map(cb => cb.value);
+  const cols = Array.from(checkedBoxes).map(cb => cb.value);
+  if (cols.length === 0) {
+    return ['sr_no', 'name', 'ration_card', 'card_type', 'mobile', 'onboarded'];
+  }
+  return cols;
 }
 
 function getActiveWatermarkText() {
@@ -1629,28 +1712,82 @@ function selectExportFormat(format) {
   currentExportFormat = format;
   document.getElementById('format-btn-pdf')?.classList.toggle('active', format === 'PDF');
   document.getElementById('format-btn-sheet')?.classList.toggle('active', format === 'SHEET');
+  document.getElementById('format-btn-csv')?.classList.toggle('active', format === 'CSV');
   updateExportModalPreview();
 }
 window.selectExportFormat = selectExportFormat;
 
-function executeExportDownload() {
-  const checkedRadio = document.querySelector('input[name="exportDataFilter"]:checked');
-  const filterVal = checkedRadio ? checkedRadio.value : 'ALL';
-  const data = getExportFilteredData(filterVal);
+async function executeExportDownload() {
+  const downloadBtn = document.querySelector('.export-modal-footer .btn-primary');
+  const originalText = downloadBtn ? downloadBtn.innerHTML : '📥 સત્તાવાર અહેવાલ ડાઉનલોડ કરો';
 
-  if (data.length === 0) {
-    showToast("⚠️ આ કેટેગરીમાં કોઈ ડેટા નથી.");
-    return;
-  }
+  try {
+    const checkedRadio = document.querySelector('input[name="exportDataFilter"]:checked');
+    const filterVal = checkedRadio ? checkedRadio.value : 'ALL';
+    const data = getExportFilteredData(filterVal);
 
-  if (currentExportFormat === 'PDF') {
-    generatePDFExport(data, filterVal);
-  } else {
-    generateExcelExport(data, filterVal);
+    if (!data || data.length === 0) {
+      showToast("⚠️ આ કેટેગરીમાં કોઈ ડેટા નથી.");
+      return;
+    }
+
+    if (downloadBtn) {
+      downloadBtn.disabled = true;
+      downloadBtn.innerHTML = '⏳ અહેવાલ તૈયાર થઈ રહ્યો છે...';
+    }
+
+    if (currentExportFormat === 'PDF') {
+      generatePDFExport(data, filterVal);
+    } else if (currentExportFormat === 'CSV') {
+      generateCSVExport(data, filterVal);
+    } else {
+      generateExcelExport(data, filterVal);
+    }
+    closeExportModal();
+  } catch (err) {
+    console.error("Export error:", err);
+    showToast(`❌ ડાઉનલોડમાં ભૂલ: ${err.message || 'અજ્ઞાત ભૂલ'}`);
+  } finally {
+    if (downloadBtn) {
+      downloadBtn.disabled = false;
+      downloadBtn.innerHTML = originalText;
+    }
   }
-  closeExportModal();
 }
 window.executeExportDownload = executeExportDownload;
+
+function generateCSVExport(data, filterType) {
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const fileName = `Pali_CBDC_${filterType}_${dateStr}.csv`;
+  const columns = getSelectedExportColumns();
+  const titleVal = document.getElementById('export-title-input')?.value || "RATION BENEFICIARY REPORT";
+  const subtitleVal = document.getElementById('export-subtitle-input')?.value || "Office of Talati, Pali Gram Panchayat";
+
+  let csv = `\uFEFF"${titleVal}"\n"${subtitleVal}"\n"Generated On: ${dateStr} | Records: ${data.length}"\n\n`;
+  csv += columns.map(col => `"${COLUMN_HEADERS_GUJ[col] || col}"`).join(",") + "\n";
+  data.forEach((b, idx) => {
+    csv += columns.map(col => {
+      let val = "";
+      if (col === 'sr_no') val = idx + 1;
+      else if (col === 'onboarded') val = b.onboarded === 'Yes' ? 'ઓનબોર્ડેડ' : 'પેન્ડિંગ';
+      else if (col === 'rc_onboarded') val = b.rc_onboarded === 'Yes' ? 'ઓનબોર્ડેડ' : 'પેન્ડિંગ';
+      else if (col === 'onboarded_date' || col === 'rc_onboarded_date') val = b[col] ? formatDateTime(b[col]) : '-';
+      else if (col === 'shop_details') val = b.shop_name || 'પળી ગ્રામ પંચાયત';
+      else val = b[col] || '-';
+      return `"${String(val).replace(/"/g, '""')}"`;
+    }).join(",") + "\n";
+  });
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showToast(`📊 CSV અહેવાલ ડાઉનલોડ થયો! (${data.length} સભ્યો)`);
+}
+window.generateCSVExport = generateCSVExport;
 
 function generateExcelExport(data, filterType) {
   const dateStr = new Date().toISOString().slice(0, 10);
@@ -1681,58 +1818,44 @@ function generateExcelExport(data, filterType) {
     return rowObj;
   });
 
-  if (window.XLSX) {
-    const worksheet = XLSX.utils.json_to_sheet([]);
-    
-    // Add professional metadata header rows
-    XLSX.utils.sheet_add_aoa(worksheet, [
-      [titleVal.toUpperCase()],
-      [subtitleVal],
-      [`Generated On: ${new Date().toLocaleString('gu-IN')} | Total Records: ${data.length}`],
-      []
-    ], { origin: "A1" });
-    
-    // Add json data starting at row 5
-    XLSX.utils.sheet_add_json(worksheet, excelRows, { origin: "A5", skipHeader: false });
-    
-    // Auto-fit column widths
-    const colWidths = [];
-    columns.forEach((col, cIdx) => {
-      let maxLen = (COLUMN_HEADERS_GUJ[col] || col).length + 4;
-      data.forEach(row => {
-        let val = String(row[col] || '');
-        if (col === 'onboarded' || col === 'rc_onboarded') val = row[col] === 'Yes' ? 'ઓનબોર્ડેડ' : 'પેન્ડિંગ';
-        if (val.length > maxLen) maxLen = val.length;
+  if (window.XLSX && window.XLSX.utils) {
+    try {
+      const worksheet = XLSX.utils.json_to_sheet([]);
+      
+      XLSX.utils.sheet_add_aoa(worksheet, [
+        [titleVal.toUpperCase()],
+        [subtitleVal],
+        [`Generated On: ${new Date().toLocaleString('gu-IN')} | Total Records: ${data.length}`],
+        []
+      ], { origin: "A1" });
+      
+      XLSX.utils.sheet_add_json(worksheet, excelRows, { origin: "A5", skipHeader: false });
+      
+      const colWidths = [];
+      columns.forEach((col) => {
+        let maxLen = (COLUMN_HEADERS_GUJ[col] || col).length + 4;
+        data.forEach(row => {
+          let val = String(row[col] || '');
+          if (col === 'onboarded' || col === 'rc_onboarded') val = row[col] === 'Yes' ? 'ઓનબોર્ડેડ' : 'પેન્ડિંગ';
+          if (val.length > maxLen) maxLen = val.length;
+        });
+        colWidths.push({ wch: Math.min(Math.max(maxLen, 8), 50) });
       });
-      colWidths.push({ wch: Math.min(Math.max(maxLen, 8), 50) });
-    });
-    worksheet['!cols'] = colWidths;
-    
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "CBDC Report");
-    XLSX.writeFile(workbook, fileName);
-    showToast(`📊 Excel અહેવાલ ડાઉનલોડ થયો! (${data.length} સભ્યો)`);
-  } else {
-    // CSV fallback
-    let csv = `\uFEFF${titleVal}\n${subtitleVal}\nGenerated On: ${dateStr} | Records: ${data.length}\n\n`;
-    csv += columns.map(col => `"${COLUMN_HEADERS_GUJ[col] || col}"`).join(",") + "\n";
-    excelRows.forEach(r => {
-      csv += columns.map(col => {
-        const headerName = COLUMN_HEADERS_GUJ[col] || col;
-        return `"${r[headerName] !== undefined ? r[headerName] : '-'}"`;
-      }).join(",") + "\n";
-    });
-    
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `Pali_CBDC_${filterType}_${dateStr}.csv`;
-    link.click();
-    showToast(`📊 CSV અહેવાલ ડાઉનલોડ થયો! (${data.length} સભ્યો)`);
+      worksheet['!cols'] = colWidths;
+      
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "CBDC Report");
+      XLSX.writeFile(workbook, fileName);
+      showToast(`📊 Excel અહેવાલ ડાઉનલોડ થયો! (${data.length} સભ્યો)`);
+      return;
+    } catch (err) {
+      console.warn("XLSX export failed, falling back to CSV:", err);
+    }
   }
+
+  generateCSVExport(data, filterType);
 }
-
-
+window.generateExcelExport = generateExcelExport;
 
 const COLUMN_HEADERS_SIMPLE = {
   "sr_no": "ક્રમ",
@@ -1750,20 +1873,166 @@ const COLUMN_HEADERS_SIMPLE = {
   "shop_details": "રેશન દુકાન"
 };
 
+function openPrintableDocument({
+  titleVal,
+  subtitleVal,
+  filterLabel,
+  totalCount,
+  dateStr,
+  tableHeadersHtml,
+  tableRowsHtml,
+  countsHtml,
+  sigHtml,
+  showEmblem,
+  watermarkHtml
+}) {
+  const printWin = window.open('', '_blank');
+  if (!printWin) {
+    showToast("⚠️ પોપ-અપ બ્લોક થયેલ છે. કૃપા કરીને બ્રાઉઝરમાં પોપ-અપની મંજૂરી આપો.");
+    return;
+  }
+
+  const logoUrl = window.location.origin + '/assets/images/logo_web.png';
+
+  printWin.document.write(`
+    <!DOCTYPE html>
+    <html lang="gu">
+      <head>
+        <meta charset="UTF-8">
+        <title>${titleVal} - ${filterLabel}</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Gujarati:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <style>
+          @page {
+            size: A4 portrait;
+            margin: 10mm 8mm 12mm 8mm;
+          }
+          @media print {
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .no-print { display: none !important; }
+            thead { display: table-header-group; }
+            tr { page-break-inside: avoid; }
+          }
+          body {
+            font-family: 'Noto Sans Gujarati', monospace, sans-serif;
+            padding: 16px;
+            color: #000000;
+            background: #ffffff;
+            margin: 0;
+          }
+          .action-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            padding: 12px 18px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+          }
+          .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 9px 18px;
+            font-size: 13px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            border: none;
+            font-family: inherit;
+          }
+          .btn-primary { background: #0284c7; color: #ffffff; }
+          .btn-primary:hover { background: #0369a1; }
+          .btn-secondary { background: #64748b; color: #ffffff; }
+          .btn-secondary:hover { background: #475569; }
+          table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 15px; border: 1.5px solid #000000; }
+          th { padding: 8px 6px; border: 1.5px solid #000000; background: #f1f5f9; color: #000000; font-weight: bold; font-size: 11px; }
+          td { padding: 6px 8px; border: 1px solid #000000; font-size: 11px; }
+        </style>
+      </head>
+      <body>
+        <div class="action-bar no-print">
+          <div>
+            <strong style="font-size: 14px;">📄 ${titleVal} (${filterLabel})</strong>
+            <span style="color: #64748b; font-size: 12px; margin-left: 8px;">— કુલ ${totalCount} સભ્યો</span>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button class="btn btn-primary" onclick="window.print()">🖨️ પ્રિન્ટ / Save as PDF</button>
+            <button class="btn btn-secondary" onclick="window.close()">❌ વિન્ડો બંધ કરો</button>
+          </div>
+        </div>
+
+        <div style="position: relative;">
+          ${watermarkHtml}
+          
+          <div style="border: 2px solid #000000; padding: 12px; margin-bottom: 16px; position: relative;">
+            ${showEmblem ? `
+            <div style="position: absolute; left: 12px; top: 12px;">
+              <img src="${logoUrl}" style="width: 55px; height: 55px; object-fit: contain;" onerror="this.style.display='none'" />
+            </div>
+            ` : ''}
+            <div style="text-align: center; margin: 0 auto; ${showEmblem ? 'padding-left: 55px;' : ''}">
+              <h2 style="margin: 0; font-size: 20px; font-weight: bold;">ગ્રામ પંચાયત પળી</h2>
+              <p style="margin: 4px 0 0 0; font-size: 12px; font-weight: bold;">${subtitleVal}</p>
+              <p style="margin: 4px 0 0 0; font-size: 13px; font-weight: bold; text-decoration: underline;">${titleVal} (${filterLabel})</p>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-top: 1.5px solid #000000; padding-top: 6px; margin-top: 8px; font-size: 11px; font-weight: bold;">
+              <div>તારીખ: ${dateStr}</div>
+              <div>રિપોર્ટ નં.: GP-PALI/CBDC/${totalCount}</div>
+            </div>
+          </div>
+
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr>${tableHeadersHtml}</tr>
+            </thead>
+            <tbody>
+              ${tableRowsHtml}
+            </tbody>
+          </table>
+
+          <div style="margin-top: 16px; font-size: 11px; line-height: 1.5;">
+            <div style="border-top: 1.5px solid #000000; margin: 8px 0;"></div>
+            <strong>નોંધ:</strong>
+            <ul style="margin: 4px 0; padding-left: 18px;">
+              <li>આ અહેવાલ પળી ગ્રામ પંચાયત રેશન વિતરણ વ્હાઇટલિસ્ટ ડેટા અનુસાર પ્રમાણિત છે.</li>
+              <li>કોઈપણ પ્રશ્ન કે સુધારા માટે તલાટી કચેરી પળીનો સંપર્ક કરવો.</li>
+            </ul>
+            <div style="border-top: 1.5px solid #000000; margin: 8px 0;"></div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: flex-end; border-top: 1.5px solid #000000; padding-top: 12px; margin-top: 16px; page-break-inside: avoid;">
+            ${countsHtml}
+            ${sigHtml}
+          </div>
+        </div>
+
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 300);
+          };
+        <\/script>
+      </body>
+    </html>
+  `);
+  printWin.document.close();
+}
+
 function generatePDFExport(data, filterType) {
   const dateStr = new Date().toLocaleDateString('gu-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  const timeStr = new Date().toLocaleTimeString('gu-IN', { hour: '2-digit', minute: '2-digit' });
-  
   const columns = getSelectedExportColumns();
-  const themeColor = getActiveThemeColor();
   const watermarkText = getActiveWatermarkText();
   
   const titleVal = document.getElementById('export-title-input')?.value || "ઈ-રૂપિયો CBDC રેશન વિતરણ વ્હાઇટલિસ્ટ";
   const subtitleVal = document.getElementById('export-subtitle-input')?.value || "પળી, ઊંઝા, મહેસાણા - ૩૮૪૨૬૦";
   
-  const showEmblem = document.getElementById('export-toggle-emblem')?.checked;
-  const showQR = document.getElementById('export-toggle-qrcode')?.checked;
-  const showStamp = document.getElementById('export-toggle-stamp')?.checked;
+  const showEmblem = document.getElementById('export-toggle-emblem')?.checked ?? true;
+  const showStamp = document.getElementById('export-toggle-stamp')?.checked ?? true;
   
   let filterLabel = "બધા લાભાર્થીઓ";
   if (filterType === 'PENDING') filterLabel = "પેન્ડિંગ લાભાર્થીઓ";
@@ -1771,12 +2040,11 @@ function generatePDFExport(data, filterType) {
   if (filterType === 'SHARED_MOBILE') filterLabel = "શેર્ડ મોબાઈલ ધરાવતા સભ્યો";
   if (filterType === 'SHARED_CARD') filterLabel = "શેર્ડ રેશનકાર્ડ ધરાવતા સભ્યો";
 
-  // Simple Table headers (plain black text, grid borders, f1f5f9 back, no colored themes or graphics)
   let tableHeadersHtml = "";
   columns.forEach(col => {
     let headerName = COLUMN_HEADERS_SIMPLE[col] || COLUMN_HEADERS_GUJ[col] || col;
     let align = (col === 'name' || col === 'shop_details') ? 'left' : 'center';
-    tableHeadersHtml += `<th style="padding: 10px 8px; border: 1.5px solid #000000; font-weight: bold; text-align: ${align}; font-size: 11px; background-color: #f1f5f9; color: #000000; font-family: 'Noto Sans Gujarati', monospace;">${headerName}</th>`;
+    tableHeadersHtml += `<th style="padding: 8px 6px; border: 1.5px solid #000000; font-weight: bold; text-align: ${align}; font-size: 11px; background-color: #f1f5f9; color: #000000;">${headerName}</th>`;
   });
   
   let tableRowsHtml = "";
@@ -1792,9 +2060,7 @@ function generatePDFExport(data, filterType) {
       } else if (col === 'onboarded' || col === 'rc_onboarded') {
         const isYes = b[col] === 'Yes';
         val = isYes ? '✓' : '✗';
-        fontStyle = isYes 
-          ? 'color: #000000; font-weight: bold; font-size: 13px;' 
-          : 'color: #000000; font-weight: bold; font-size: 13px;';
+        fontStyle = 'font-weight: bold; color: #000000;';
       } else if (col === 'onboarded_date' || col === 'rc_onboarded_date') {
         val = b[col] ? formatDateTime(b[col]) : '-';
       } else if (col === 'area_name') {
@@ -1809,14 +2075,10 @@ function generatePDFExport(data, filterType) {
         if (col === 'ration_card') fontStyle = 'font-family: monospace; font-size: 11px; font-weight: bold;';
         if (col === 'mobile') fontStyle = 'font-family: monospace; font-size: 11px;';
       }
-      rowCells += `<td style="padding: 8px; border: 1px solid #000000; text-align: ${align}; ${fontStyle}">${val}</td>`;
+      rowCells += `<td style="padding: 6px 8px; border: 1px solid #000000; text-align: ${align}; ${fontStyle}">${val}</td>`;
     });
     
-    tableRowsHtml += `
-      <tr style="background-color: #ffffff;">
-        ${rowCells}
-      </tr>
-    `;
+    tableRowsHtml += `<tr style="background-color: #ffffff;">${rowCells}</tr>`;
   });
   
   let watermarkHtml = "";
@@ -1827,15 +2089,14 @@ function generatePDFExport(data, filterType) {
         top: 45%; 
         left: 50%; 
         transform: translate(-50%, -50%) rotate(-32deg); 
-        font-size: 60px; 
+        font-size: 50px; 
         font-weight: bold; 
-        color: rgba(0, 0, 0, 0.02); 
+        color: rgba(0, 0, 0, 0.03); 
         pointer-events: none; 
         white-space: nowrap; 
         z-index: 0; 
-        letter-spacing: 5px;
+        letter-spacing: 4px;
         text-transform: uppercase;
-        font-family: 'Noto Sans Gujarati', monospace;
       ">${watermarkText}</div>
     `;
   }
@@ -1844,15 +2105,8 @@ function generatePDFExport(data, filterType) {
   const onboardedCount = data.filter(b => b.onboarded === 'Yes').length;
   const pendingCount = totalCount - onboardedCount;
   
-  let logoHtml = "";
-  if (showEmblem) {
-    logoHtml = `
-      <img src="assets/images/logo_web.png" style="width: 65px; height: 65px; object-fit: contain; display: block;" />
-    `;
-  }
-  
   let countsHtml = `
-    <div style="font-weight: bold; color: #000000; font-family: 'Noto Sans Gujarati', monospace; line-height: 1.45;">
+    <div style="font-weight: bold; color: #000000; line-height: 1.45; font-size: 11px;">
       <div>કુલ સભ્યો : <strong>${totalCount}</strong></div>
       <div>ઓનબોર્ડિંગ કરેલા : <strong>${onboardedCount}</strong></div>
       <div>બાકી : <strong>${pendingCount}</strong></div>
@@ -1862,130 +2116,30 @@ function generatePDFExport(data, filterType) {
   let sigHtml = "";
   if (showStamp) {
     sigHtml = `
-      <div style="text-align: center; margin-top: 5px; flex-shrink: 0; width: 200px; font-family: 'Noto Sans Gujarati', monospace; line-height: 1.45;">
-        <div style="border-top: 1px solid #000000; margin: 30px auto 6px auto; width: 160px;"></div>
-        <div style="font-weight: bold; font-size: 14px; color: #000000;">તલાટી કમ મંત્રી</div>
-        <div style="font-size: 12px; color: #000000;">(સહી / સિક્કો)</div>
+      <div style="text-align: center; margin-top: 5px; flex-shrink: 0; width: 180px; line-height: 1.45;">
+        <div style="border-top: 1px solid #000000; margin: 25px auto 6px auto; width: 150px;"></div>
+        <div style="font-weight: bold; font-size: 13px; color: #000000;">તલાટી કમ મંત્રી</div>
+        <div style="font-size: 11px; color: #000000;">(સહી / સિક્કો)</div>
       </div>
     `;
   }
-  
-  const pdfContainer = document.createElement('div');
-  pdfContainer.style.padding = '40px';
-  pdfContainer.style.position = 'relative';
-  pdfContainer.style.fontFamily = "'Noto Sans Gujarati', monospace";
-  pdfContainer.style.color = '#000000';
-  pdfContainer.style.background = '#ffffff';
-  pdfContainer.style.boxSizing = 'border-box';
-  
-  pdfContainer.innerHTML = `
-    ${watermarkHtml}
-    
-    <!-- Top Header Box enclosing title, logo and date metadata -->
-    <div style="border: 2px solid #000000; padding: 15px; margin-bottom: 20px; position: relative; font-family: 'Noto Sans Gujarati', monospace; z-index: 2;">
-      <!-- Left side: logo emblem -->
-      ${showEmblem ? `
-      <div style="position: absolute; left: 15px; top: 15px;">
-        ${logoHtml}
-      </div>
-      ` : ''}
-      
-      <!-- Top Center text -->
-      <div style="text-align: center; margin: 0 auto; ${showEmblem ? 'padding-left: 65px;' : ''} padding-bottom: 10px;">
-        <h1 style="margin: 0; font-size: 22px; font-weight: bold; color: #000000;">ગ્રામ પંચાયત પળી</h1>
-        <p style="margin: 5px 0 0 0; font-size: 13px; color: #000000; font-weight: bold;">${subtitleVal}</p>
-        <p style="margin: 4px 0 0 0; font-size: 14px; color: #000000; font-weight: bold; text-decoration: underline;">${titleVal} (${filterLabel})</p>
-      </div>
-      
-      <!-- Date, Time and filter on the bottom edge of the box -->
-      <div style="display: flex; justify-content: space-between; border-top: 1.5px solid #000000; padding-top: 8px; margin-top: 6px; font-size: 12px; font-weight: bold;">
-        <div>તારીખ: ${dateStr}</div>
-        <div>રિપોર્ટ નં.: GP-PALI/CBDC/${totalCount}</div>
-      </div>
-    </div>
-    
-    <!-- Table Grid divided by header line -->
-    <div style="z-index: 2; position: relative; margin-bottom: 20px;">
-      <table style="width: 100%; border-collapse: collapse; font-size: 11px; background: #ffffff; border: 1.5px solid #000000; font-family: 'Noto Sans Gujarati', monospace;">
-        <thead>
-          <tr style="background-color: #f1f5f9; color: #000000;">
-            ${tableHeadersHtml}
-          </tr>
-        </thead>
-        <tbody>
-          ${tableRowsHtml}
-        </tbody>
-      </table>
-    </div>
-    
-    <!-- Notes Section -->
-    <div style="z-index: 2; position: relative; margin-top: 20px; font-family: 'Noto Sans Gujarati', monospace; font-size: 11.5px; line-height: 1.6;">
-      <div style="border-top: 1.5px solid #000000; margin: 10px 0;"></div>
-      <strong>નોંધ (Notes):</strong>
-      <ul style="margin: 4px 0; padding-left: 18px; list-style-type: square; color: #000000;">
-        <li>આ અહેવાલ પળી ગ્રામ પંચાયત રેશન વિતરણ વ્હાઇટલિસ્ટ ડેટા અનુસાર જનરેટ કરવામાં આવેલ છે.</li>
-        <li>કોઈપણ પ્રશ્ન કે સુધારા માટે તલાટી કચેરી પળીનો સંપર્ક કરવો.</li>
-      </ul>
-      <div style="border-top: 1.5px solid #000000; margin: 10px 0;"></div>
-    </div>
-    <!-- Bottom counts and signature layout -->
-    <div style="display: flex; justify-content: space-between; align-items: flex-end; border-top: 1.5px solid #000000; padding-top: 10px; margin-top: 15px; page-break-inside: avoid; z-index: 2; position: relative;">
-      ${countsHtml}
-      ${sigHtml}
-    </div>
-  `;
-  
-  document.body.appendChild(pdfContainer);
-  
 
-
-  if (window.html2pdf) {
-    const opt = {
-      margin:       [0.4, 0.4, 0.4, 0.4],
-      filename:     `Pali_CBDC_${filterType}_${new Date().toISOString().slice(0, 10)}.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true, logging: false },
-      jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
-    };
-    
-    html2pdf().set(opt).from(pdfContainer).save().then(() => {
-      document.body.removeChild(pdfContainer);
-      showToast(`📄 સત્તાવાર PDF અહેવાલ ડાઉનલોડ થયો! (${data.length} સભ્યો)`);
-    });
-  } else {
-    const printWin = window.open('', '_blank');
-    printWin.document.write(`
-      <html>
-        <head>
-          <title>${titleVal}</title>
-          <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Gujarati:wght@400;500;600;700&display=swap" rel="stylesheet">
-          <style>
-            body { font-family: 'Noto Sans Gujarati', sans-serif; padding: 25px; color: #1e293b; }
-            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-            th { padding: 12px 10px; border-bottom: 2px solid #000000; background: #f1f5f9; color: black; font-weight: bold; font-size: 11px; }
-            td { padding: 10px; border-bottom: 1px solid #000000; font-size: 11px; }
-          </style>
-        </head>
-        <body>
-          ${pdfContainer.innerHTML}
-          <script>
-            const originalCanvas = window.opener.document.getElementById('${qrCanvasId}');
-            if (originalCanvas) {
-              const printCanvas = document.getElementById('${qrCanvasId}');
-              if (printCanvas) {
-                const ctx = printCanvas.getContext('2d');
-                ctx.drawImage(originalCanvas, 0, 0);
-              }
-            }
-            window.onload = function() { window.print(); }
-          </script>
-        </body>
-      </html>
-    `);
-    printWin.document.close();
-    document.body.removeChild(pdfContainer);
-  }
+  openPrintableDocument({
+    titleVal,
+    subtitleVal,
+    filterLabel,
+    totalCount,
+    dateStr,
+    tableHeadersHtml,
+    tableRowsHtml,
+    countsHtml,
+    sigHtml,
+    showEmblem,
+    watermarkHtml
+  });
+  showToast(`📄 PDF / પ્રિન્ટ અહેવાલ તૈયાર થયો! (${data.length} સભ્યો)`);
 }
+window.generatePDFExport = generatePDFExport;
 
 function showToast(msg) {
   const container = document.getElementById('toast-container');

@@ -1,0 +1,28 @@
+[
+  {
+    "id": 1,
+    "user_id": "talati_001",
+    "action": "onboarding_update",
+    "sr_no": 1,
+    "beneficiary_name": "RAJPUT SHAURYARAJSINH DHAVALSINH",
+    "field": "onboarded",
+    "old_status": "Yes",
+    "new_status": "No",
+    "remarks": "Test run status update",
+    "ip": "127.0.0.1",
+    "timestamp": "2026-08-01T11:19:39.721499Z"
+  },
+  {
+    "id": 2,
+    "user_id": "talati_001",
+    "action": "onboarding_update",
+    "sr_no": 1,
+    "beneficiary_name": "RAJPUT SHAURYARAJSINH DHAVALSINH",
+    "field": "onboarded",
+    "old_status": "No",
+    "new_status": "Yes",
+    "remarks": "Reset test status",
+    "ip": "127.0.0.1",
+    "timestamp": "2026-08-01T11:19:39.739021Z"
+  }
+]

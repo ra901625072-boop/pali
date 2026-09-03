@@ -1,13 +1,12 @@
-﻿<div align="center">
+<div align="center">
 
 # 🏦 Pali CBDC Ration Distribution Management Portal
 
 <p align="center">
-  <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" />
-  <img src="https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
-  <img src="https://img.shields.io/badge/Python_3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js" />
+  <img src="https://img.shields.io/badge/Express-000000?style=for-the-badge&logo=express&logoColor=white" alt="Express" />
+  <img src="https://img.shields.io/badge/JSON_Store-000000?style=for-the-badge&logo=json&logoColor=white" alt="JSON Data" />
   <img src="https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="Vercel" />
-  <img src="https://img.shields.io/badge/Render-46E3B7?style=for-the-badge&logo=render&logoColor=black" alt="Render" />
   <img src="https://img.shields.io/badge/GovTech-Digital_India-FF9933?style=for-the-badge" alt="GovTech" />
 </p>
 
@@ -31,11 +30,11 @@
 
 ## ✨ Key Features
 
-- ⚡ **High-Speed FastAPI Backend:** Async REST API for instant beneficiary lookup by Ration Card ID, Aadhaar number, or family head name.
-- 🗄️ **Automated Seeding & Data Ingestion:** Dedicated database seeding script (`seed.py`) converting raw survey sheets (`raw data.xlsx`) into PostgreSQL / SQLite records.
+- ⚡ **High-Speed Node.js Backend:** Express REST API for instant beneficiary lookup by Ration Card ID, Aadhaar number, or family head name.
+- 🗄️ **JSON Data Storage:** All beneficiary records (270 members), metadata, users, and audit logs stored directly in structured JSON format without external database dependencies.
 - 📊 **Talati Administrative Dashboard:** Real-time analytics on daily grain distributions, CBDC voucher redemptions, pending disbursements, and village quota fulfillment.
-- 🛡️ **Audit Logs & Security:** Tamper-evident transaction logging tracking time, officer ID, and beneficiary verification status.
-- ☁️ **Hybrid Production Architecture:** Backend deployed on **Render** with CORS proxying to a responsive frontend hosted on **Vercel**.
+- 🛡️ **Audit Logs & Security:** Tamper-evident transaction logging tracking time, officer ID, and beneficiary verification status with JWT authentication and bcrypt password hashing.
+- ☁️ **Full Vercel Integration:** Both static frontend and serverless API are unified in a single deployment on **Vercel** with zero external database dependencies.
 
 ---
 
@@ -43,26 +42,19 @@
 
 ```mermaid
 flowchart LR
-    subgraph Client["Frontend (Vercel)"]
-        UI["💻 Talati Dashboard & Beneficiary Portal"]
-    end
-
-    subgraph Server["Backend API (Render)"]
-        API["⚡ FastAPI Application"]
+    subgraph Vercel["Unified Vercel Platform"]
+        UI["💻 Talati Dashboard & Beneficiary Portal (HTML/JS/CSS)"]
+        API["⚡ Node.js Express Serverless API (/api)"]
         Auth["🔑 JWT & Security Handlers"]
-        Reports["📄 Report Generator"]
     end
 
-    subgraph DataStore["Database Layer"]
-        DB[("🐘 PostgreSQL / SQLite")]
-        RawData["📊 Raw Survey Sheets (.xlsx)"]
+    subgraph DataStore["Data Layer"]
+        JSONStore[("📁 Structured JSON Files (data/*.json)")]
     end
 
-    UI -->|HTTPS / REST API| API
-    API --> Auth
-    API --> DB
-    RawData -->|seed.py Ingestion| DB
-    API --> Reports
+    UI <-->|/api/*| API
+    API <--> Auth
+    API <--> JSONStore
 ```
 
 ---
@@ -71,18 +63,21 @@ flowchart LR
 
 ```
 CBDCP/
-├── backend/
-│   ├── main.py               # FastAPI application & route endpoints
-│   ├── seed.py               # Database ingestion and seeding script
-│   ├── requirements.txt      # Python dependencies for Render / local runtime
-│   ├── database.db           # SQLite database (development)
-│   ├── raw data.xlsx         # Reference survey source records
-│   └── reports/              # Generated audit reports
+├── api/
+│   └── index.js              # Express API (Vercel Serverless Function & local router)
+├── lib/
+│   └── dataStore.js          # JSON Data Access Layer (in-memory + disk persistence)
+├── data/
+│   ├── data.json             # Beneficiary records (270) and village metadata
+│   ├── users.json            # Authentication credentials (Talati user)
+│   └── audit_logs.json       # Onboarding audit history
 ├── frontend/
 │   ├── index.html            # Dashboard web interface
-│   ├── vercel.json           # Vercel deployment routing & API rewrites
+│   ├── vercel.json           # Vercel deployment routing & rewrites
 │   └── assets/               # CSS styles, JS logic, and fallback datasets
-├── .gitignore                # Git exclusions
+├── server.js                 # Local Node.js development server
+├── vercel.json               # Root Vercel deployment configuration
+├── package.json              # Node.js dependencies and scripts
 └── README.md                 # Project documentation
 ```
 
@@ -91,8 +86,8 @@ CBDCP/
 ## 🚀 Getting Started
 
 ### 1. Prerequisites
-- Python 3.10+
-- `pip`
+- **Node.js**: v18.0.0 or higher
+- **npm**: v9.0.0 or higher
 
 ### 2. Local Setup
 ```bash
@@ -100,35 +95,29 @@ CBDCP/
 git clone https://github.com/ra901625072-boop/pali.git
 cd pali
 
-# Setup virtual environment
-python -m venv venv
-venv\Scripts\activate        # Linux/macOS: source venv/bin/activate
-
 # Install dependencies
-pip install -r backend/requirements.txt
+npm install
 ```
 
-### 3. Database Seeding
+### 3. Run Development Server
 ```bash
-# Seed initial beneficiary records
-python backend/seed.py
-
-# Force re-seeding / reset database:
-python backend/seed.py --force
+npm start
 ```
-
-### 4. Run Development Server
-```bash
-python backend/main.py
-```
-FastAPI server starts at `http://127.0.0.1:8080`.
+The server will start at `http://localhost:8080`.
+- **Website UI:** `http://localhost:8080/`
+- **REST API:** `http://localhost:8080/api/beneficiaries`
+- **Default Talati Login:** `nikunjdarji` / `Nikunj@97`
 
 ---
 
-## 🌐 Production Deployment
+## 🌐 Production Deployment (Vercel)
 
-- **Backend (Render):** Deploy `backend/` folder as a Python Web Service. Set start command: `python main.py`.
-- **Frontend (Vercel):** Deploy `frontend/` folder. The `vercel.json` file handles reverse proxying `/api/*` to the Render backend.
+Deploying to **Vercel** is now fully automatic with zero external services required:
+
+1. Push your changes to GitHub.
+2. Import the repository into [Vercel](https://vercel.com).
+3. Deploy! Vercel automatically detects the static frontend and the `/api` Serverless Functions.
+4. No external database or Render configuration is required.
 
 ---
 
