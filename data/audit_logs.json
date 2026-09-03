@@ -63,5 +63,18 @@
     "remarks": "Automated test update",
     "ip": "::ffff:127.0.0.1",
     "timestamp": "2026-09-03T13:51:53.689Z"
+  },
+  {
+    "id": 6,
+    "user_id": "talati_001",
+    "action": "onboarding_update",
+    "sr_no": 1,
+    "beneficiary_name": "RAJPUT SHAURYARAJSINH DHAVALSINH",
+    "field": "onboarded",
+    "old_status": "Yes",
+    "new_status": "Yes",
+    "remarks": "Automated test update",
+    "ip": "::ffff:127.0.0.1",
+    "timestamp": "2026-09-03T14:19:06.006Z"
   }
 ]

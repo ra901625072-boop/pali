@@ -20,6 +20,34 @@ const USERS_FILE = resolveFilePath('data/users.json');
 const AUDIT_FILE = resolveFilePath('data/audit_logs.json');
 const FRONTEND_DATA_FILE = resolveFilePath('frontend/assets/data/data.json');
 
+// Static require fallbacks so Vercel bundler includes files automatically
+let defaultData = null;
+try {
+  defaultData = require('../data/data.json');
+} catch (e1) {
+  try {
+    defaultData = require('./data/data.json');
+  } catch (e2) {}
+}
+
+let defaultUsers = null;
+try {
+  defaultUsers = require('../data/users.json');
+} catch (e1) {
+  try {
+    defaultUsers = require('./data/users.json');
+  } catch (e2) {}
+}
+
+let defaultAuditLogs = null;
+try {
+  defaultAuditLogs = require('../data/audit_logs.json');
+} catch (e1) {
+  try {
+    defaultAuditLogs = require('./data/audit_logs.json');
+  } catch (e2) {}
+}
+
 // In-memory cache
 let memoryData = null;
 let memoryUsers = null;
@@ -35,12 +63,14 @@ function loadData() {
         memoryData = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
       } else if (fs.existsSync(FRONTEND_DATA_FILE)) {
         memoryData = JSON.parse(fs.readFileSync(FRONTEND_DATA_FILE, 'utf-8'));
+      } else if (defaultData) {
+        memoryData = JSON.parse(JSON.stringify(defaultData));
       } else {
         memoryData = { metadata: {}, beneficiaries: [] };
       }
     } catch (err) {
       console.error('Error reading data.json:', err);
-      memoryData = { metadata: {}, beneficiaries: [] };
+      memoryData = defaultData ? JSON.parse(JSON.stringify(defaultData)) : { metadata: {}, beneficiaries: [] };
     }
   }
   return memoryData;
@@ -51,6 +81,8 @@ function loadUsers() {
     try {
       if (fs.existsSync(USERS_FILE)) {
         memoryUsers = JSON.parse(fs.readFileSync(USERS_FILE, 'utf-8'));
+      } else if (defaultUsers) {
+        memoryUsers = JSON.parse(JSON.stringify(defaultUsers));
       } else {
         memoryUsers = [
           {
@@ -66,7 +98,7 @@ function loadUsers() {
       }
     } catch (err) {
       console.error('Error reading users.json:', err);
-      memoryUsers = [];
+      memoryUsers = defaultUsers ? JSON.parse(JSON.stringify(defaultUsers)) : [];
     }
   }
   return memoryUsers;
@@ -75,14 +107,18 @@ function loadUsers() {
 function loadAuditLogs() {
   if (!memoryAuditLogs) {
     try {
-      if (fs.existsSync(AUDIT_FILE)) {
+      const tmpAudit = path.join('/tmp', 'audit_logs.json');
+      if (fs.existsSync(tmpAudit)) {
+        memoryAuditLogs = JSON.parse(fs.readFileSync(tmpAudit, 'utf-8'));
+      } else if (fs.existsSync(AUDIT_FILE)) {
         memoryAuditLogs = JSON.parse(fs.readFileSync(AUDIT_FILE, 'utf-8'));
+      } else if (defaultAuditLogs) {
+        memoryAuditLogs = JSON.parse(JSON.stringify(defaultAuditLogs));
       } else {
         memoryAuditLogs = [];
       }
-    } catch (err) {
-      console.error('Error reading audit_logs.json:', err);
-      memoryAuditLogs = [];
+    } catch (e) {
+      memoryAuditLogs = defaultAuditLogs ? JSON.parse(JSON.stringify(defaultAuditLogs)) : [];
     }
   }
   return memoryAuditLogs;
